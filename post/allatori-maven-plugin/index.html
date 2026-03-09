@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Greal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="温故而知新"/>
+<meta name="keywords" content="温故而知新"/>
+<link rel="shortcut icon" href="https://da1v4d.github.io/favicon.ico">
+<link rel="stylesheet" href="https://da1v4d.github.io/styles/main.css">
+
+
+<!-- Comment -->
+
+
+<link href="https://cdn.bootcss.com/font-awesome/5.11.2/css/all.min.css" rel="stylesheet">
+
+
+
+</head>
+<body class="post-template">
+<div id="page" class="site">
+
+    <!-- 参考 paper 主题：纯 CSS 导航开关（checkbox + label），不依赖 JS，部署后 404 时导航仍可打开 -->
+<input type="checkbox" id="sidebar-toggle-cb" class="sidebar-checkbox" aria-hidden="true" hidden>
+<header class="site-header">
+    <h1 class="site-title"><a href="https://da1v4d.github.io">Greal</a></h1>
+    <div class="header-search-wrap">
+        <input type="search" class="header-search-input" placeholder="搜索…  Ctrl+K" aria-label="打开搜索" autocomplete="off" readonly>
+        <button type="button" class="header-search-icon" aria-label="打开搜索" title="搜索"><i class="fas fa-search" aria-hidden="true"></i></button>
+    </div>
+    <label for="sidebar-toggle-cb" class="sidebar-toggle" aria-label="打开菜单"><span class="screen-reader-text">Menu</span><span class="icon" aria-hidden="true"></span></label>
+</header>
+
+<!-- 搜索悬浮窗：点击头部搜索框后显示，背景毛玻璃，使用搜索索引做模糊搜索 -->
+<div id="search-overlay" class="search-overlay" aria-hidden="true" data-domain="https://da1v4d.github.io">
+    <div class="search-overlay-backdrop" data-close="search"></div>
+    <div class="search-overlay-panel">
+        <div class="search-overlay-form">
+            <div class="search-overlay-input-wrap">
+                <span class="search-placeholder-left" aria-hidden="true">搜索...</span>
+                <span class="search-placeholder-right" aria-hidden="true">Ctrl+K</span>
+                <input type="search" class="search-overlay-input" placeholder=" " aria-label="搜索" autocomplete="off">
+            </div>
+            <button type="button" class="search-overlay-close" aria-label="关闭搜索" data-close="search">&times;</button>
+        </div>
+        <div class="search-overlay-results" id="search-overlay-results" aria-live="polite"></div>
+    </div>
+</div>
+
+<aside class="sidebar">
+    <div class="sidebar-scrollable">
+        <div class="inner">
+            <div class="widget-area">
+                <!-- 菜单 -->
+                <nav class="site-navigation">
+                    <h2>Greal</h2>
+                    <ul class="menu">
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/"
+                                
+                                >首页</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/archives"
+                                
+                                >归档</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/tag/HaLb7n1iTe/"
+                                
+                                >技术分享</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/tags"
+                                
+                                >标签</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/post/about"
+                                
+                                >关于</a>
+                            </li>
+                        
+                    </ul>
+                </nav>
+
+                <section class="widget widget-about">
+                    <h2 class="widget-title">关于</h2>
+                    <p>温故而知新</p>
+                </section>
+
+                <section class="widget widget-tags">
+                    <h2 class="widget-title">标签</h2>
+                    <div class="tagcloud">
+                        
+                            <a href="https://da1v4d.github.io/tag/HaLb7n1iTe/" class="button">
+                                技术分享
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/-MHu0nqeXU/" class="button">
+                                springboot
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/XzEHCMPN89/" class="button">
+                                java
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/sg3MDIswNj/" class="button">
+                                maven
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/a-SFnGmQWe/" class="button">
+                                Gridea
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                    </div>
+                </section>
+
+            </div>
+            <label for="sidebar-toggle-cb" class="sidebar-toggle" aria-label="关闭菜单"><span class="screen-reader-text">Close</span><span class="icon" aria-hidden="true"></span></label>
+        </div>
+    </div>
+</aside>
+<!-- SearchManager：搜索逻辑独立模块，高内聚；通过 init / openSearch / closeSearch 与页面低耦合 -->
+<script type="application/javascript">
+
+(function () {
+  'use strict';
+
+  var LOG_PREFIX = '[Galaxy Search]';
+  var SEARCH_DEBOUNCE_MS = 180;
+  var SEARCH_FOCUS_DELAY_MS = 50;
+  var SEARCH_INDEX_PATH = 'search-index/index.html';
+  var SEARCH_SUMMARY_MAX_LEN = 120;
+  var SCORE_TITLE = 100;
+  var SCORE_TAG = 50;
+  var SCORE_SUMMARY = 10;
+
+  function log() {
+    try {
+      if (typeof console !== 'undefined' && console.log) {
+        console.log.apply(console, [LOG_PREFIX].concat(Array.prototype.slice.call(arguments)));
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    var s = String(str);
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function defer(fn, delayMs) {
+    delayMs = delayMs == null ? 0 : delayMs;
+    if (typeof requestAnimationFrame !== 'undefined' && delayMs <= 0) {
+      requestAnimationFrame(fn);
+    } else {
+      setTimeout(fn, delayMs);
+    }
+  }
+
+  function getSearchIndexUrl(domain) {
+    if (!domain) return '';
+    var a = document.createElement('a');
+    a.href = domain;
+    var path = a.pathname || '/';
+    var base = path.replace(/\/$/, '') + '/';
+    return base + SEARCH_INDEX_PATH;
+  }
+
+  function decodeHtmlEntitiesForJson(s) {
+    if (typeof s !== 'string') return s;
+    return s
+      .replace(/&#34;/g, '"')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  function parseSearchIndexResponse(raw, logger) {
+    if (typeof raw !== 'string') {
+      if (logger) logger('parseSearchIndexResponse', 'invalid type', typeof raw);
+      return null;
+    }
+    var text = raw.replace(/^\uFEFF/, '').trim();
+    text = decodeHtmlEntitiesForJson(text);
+    if (text.charAt(0) !== '{') {
+      var start = text.indexOf('{');
+      var end = text.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        text = text.slice(start, end + 1);
+      } else {
+        if (logger) logger('parseSearchIndexResponse', 'no JSON object in response');
+        return null;
+      }
+    }
+    try {
+      var data = JSON.parse(text);
+      var posts = Array.isArray(data.posts) ? data.posts : [];
+      if (logger) logger('parseSearchIndexResponse', 'ok', 'posts.length=', posts.length);
+      return posts;
+    } catch (e) {
+      if (logger) logger('search index parse error', e.message, 'preview=', text.slice(0, 120));
+      return null;
+    }
+  }
+
+  function normalizePostItem(item) {
+    if (!item || typeof item !== 'object') return null;
+    return {
+      title: item.title != null ? String(item.title) : '',
+      link: item.link != null ? String(item.link) : '#',
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      summary: item.summary != null ? String(item.summary) : ''
+    };
+  }
+
+  function createSearchIndexFetcher(getUrl, logger) {
+    var cache = null;
+    return function fetchSearchIndex(callback) {
+      if (typeof callback !== 'function') return;
+      if (cache) {
+        if (logger) logger('fetchSearchIndex', 'from cache', 'count=', cache.length);
+        callback(cache);
+        return;
+      }
+      var url = getUrl();
+      if (!url) {
+        if (logger) logger('fetchSearchIndex', 'url empty');
+        callback([]);
+        return;
+      }
+      if (logger) logger('fetchSearchIndex', 'start', 'url=', url);
+      var xhr = new XMLHttpRequest();
+      var done = false;
+      function finish(posts) {
+        if (done) return;
+        done = true;
+        if (posts && posts.length > 0) cache = posts;
+        callback(posts || []);
+      }
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) {
+          var posts = parseSearchIndexResponse(xhr.responseText, logger);
+          finish(posts);
+        } else {
+          if (logger) logger('fetchSearchIndex', 'error', 'status=', xhr.status);
+          finish([]);
+        }
+      };
+      xhr.onerror = function () {
+        if (logger) logger('fetchSearchIndex', 'network error');
+        finish([]);
+      };
+      try {
+        xhr.open('GET', url, true);
+        xhr.send();
+      } catch (e) {
+        if (logger) logger('fetchSearchIndex', 'send error', e.message);
+        finish([]);
+      }
+    };
+  }
+
+  function fuzzyMatchScore(item, words) {
+    var title = (item.title || '').toLowerCase();
+    var tags = (item.tags || []).join(' ').toLowerCase();
+    var summary = (item.summary || '').toLowerCase();
+    var combined = title + ' ' + tags + ' ' + summary;
+    var score = 0;
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (!w) continue;
+      var idx = combined.indexOf(w);
+      if (idx === -1) return -1;
+      if (idx < title.length) score += SCORE_TITLE;
+      else if (idx < title.length + tags.length) score += SCORE_TAG;
+      else score += SCORE_SUMMARY;
+    }
+    return score;
+  }
+
+  function renderSearchResults(containerEl, list, escapeFn) {
+    if (!containerEl) return;
+    if (!list || list.length === 0) {
+      containerEl.setAttribute('data-state', 'empty');
+      containerEl.innerHTML = '<p class="search-overlay-status">无匹配结果</p>';
+      return;
+    }
+    containerEl.setAttribute('data-state', 'results');
+    var html = '<ul class="search-overlay-list">';
+    for (var j = 0; j < list.length; j++) {
+      var p = list[j].item;
+      var titleEsc = escapeFn(p.title || '');
+      var summary = p.summary || '';
+      var summaryEsc = escapeFn(summary.slice(0, SEARCH_SUMMARY_MAX_LEN));
+      if (summary.length > SEARCH_SUMMARY_MAX_LEN) summaryEsc += '…';
+      var linkEsc = escapeFn(p.link || '#');
+      html += '<li class="search-overlay-item" data-index="' + j + '"><a href="' + linkEsc + '" class="search-overlay-link">';
+      html += '<span class="search-overlay-item-title">' + titleEsc + '</span>';
+      if (summaryEsc) html += '<span class="search-overlay-item-summary">' + summaryEsc + '</span>';
+      html += '</a></li>';
+    }
+    html += '</ul>';
+    containerEl.innerHTML = html;
+  }
+
+  var overlayEl = null;
+  var overlayInput = null;
+  var overlayInputWrap = null;
+  var resultsEl = null;
+  var closeButtons = null;
+  var searchPanel = null;
+  var headerSearchInput = null;
+  var indexUrlGetter = null;
+  var fetchSearchIndex = null;
+  var searchDebounceTimer = null;
+  var searchHighlightedIndex = -1;
+
+  function clearSearchDebounce() {
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
+  }
+
+  function getSearchResultItems() {
+    return resultsEl ? resultsEl.querySelectorAll('.search-overlay-item') : [];
+  }
+
+  function setSearchHighlight(index) {
+    var items = getSearchResultItems();
+    var count = items.length;
+    if (count === 0) { searchHighlightedIndex = -1; return; }
+    var idx = index < 0 ? 0 : (index >= count ? count - 1 : index);
+    if (overlayEl) overlayEl.setAttribute('data-input-mode', 'keyboard');
+    for (var i = 0; i < count; i++) items[i].classList.toggle('is-highlighted', i === idx);
+    items[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    searchHighlightedIndex = idx;
+  }
+
+  function setMouseHighlight(itemEl) {
+    if (!overlayEl || !resultsEl) return;
+    overlayEl.setAttribute('data-input-mode', 'mouse');
+    var items = getSearchResultItems();
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle('is-hovered', items[i] === itemEl);
+    }
+  }
+
+  function clearMouseHighlight() {
+    if (!resultsEl) return;
+    var items = getSearchResultItems();
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('is-hovered');
+  }
+
+  function syncSearchPlaceholder() {
+    if (overlayInputWrap && overlayInput) {
+      overlayInputWrap.classList.toggle('has-value', overlayInput.value.trim().length > 0);
+    }
+  }
+
+  function openSearch() {
+    if (!overlayEl) return;
+    overlayEl.classList.add('is-open');
+    overlayEl.setAttribute('aria-hidden', 'false');
+    overlayEl.setAttribute('data-input-mode', 'keyboard');
+    if (document.body) document.body.classList.add('search-overlay-open');
+    if (overlayInput) {
+      overlayInput.value = '';
+      defer(function () {
+        try { overlayInput.focus(); } catch (e) { /* ignore */ }
+      }, SEARCH_FOCUS_DELAY_MS);
+    }
+    if (resultsEl) {
+      resultsEl.innerHTML = '';
+      resultsEl.setAttribute('data-state', 'idle');
+    }
+    searchHighlightedIndex = -1;
+  }
+
+  function closeSearch() {
+    if (!overlayEl) return;
+    overlayEl.classList.remove('is-open');
+    overlayEl.setAttribute('aria-hidden', 'true');
+    if (document.body) document.body.classList.remove('search-overlay-open');
+    clearSearchDebounce();
+    if (headerSearchInput) {
+      try { headerSearchInput.blur(); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function runSearch() {
+    var q = overlayInput ? overlayInput.value.trim() : '';
+    if (!resultsEl) return;
+    if (!q) {
+      resultsEl.innerHTML = '';
+      resultsEl.setAttribute('data-state', 'idle');
+      return;
+    }
+    resultsEl.setAttribute('data-state', 'loading');
+    resultsEl.innerHTML = '<p class="search-overlay-status">搜索中…</p>';
+    fetchSearchIndex(function (posts) {
+      if (!resultsEl) return;
+      var normalized = [];
+      for (var i = 0; i < posts.length; i++) {
+        var p = normalizePostItem(posts[i]);
+        if (p) normalized.push(p);
+      }
+      var words = q.toLowerCase().split(/\s+/).filter(function (w) { return w.length > 0; });
+      var list = [];
+      for (var k = 0; k < normalized.length; k++) {
+        var score = fuzzyMatchScore(normalized[k], words);
+        if (score >= 0) list.push({ item: normalized[k], score: score });
+      }
+      list.sort(function (a, b) { return b.score - a.score; });
+      renderSearchResults(resultsEl, list, escapeHtml);
+      setSearchHighlight(list.length > 0 ? 0 : -1);
+    });
+  }
+
+  function onSearchInput() {
+    syncSearchPlaceholder();
+    clearSearchDebounce();
+    searchDebounceTimer = setTimeout(runSearch, SEARCH_DEBOUNCE_MS);
+  }
+
+  function handleSearchNavigationKey(e) {
+    var items = getSearchResultItems();
+    var count = items.length;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (count > 0) setSearchHighlight(searchHighlightedIndex < 0 ? 0 : searchHighlightedIndex + 1);
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (count > 0) setSearchHighlight(searchHighlightedIndex <= 0 ? count - 1 : searchHighlightedIndex - 1);
+      return true;
+    }
+    if (e.key === 'Enter') {
+      if (count > 0 && searchHighlightedIndex >= 0) {
+        var link = items[searchHighlightedIndex].querySelector('.search-overlay-link');
+        if (link && link.href) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSearch();
+          window.location.href = link.href;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function onSearchKeydown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+      return;
+    }
+    if (handleSearchNavigationKey(e)) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearSearchDebounce();
+      runSearch();
+    }
+  }
+
+  function init(el, options) {
+    options = options || {};
+    overlayEl = el;
+    if (!el) {
+      log('init', 'no overlay element');
+      return;
+    }
+    overlayInput = el.querySelector('.search-overlay-input');
+    overlayInputWrap = el.querySelector('.search-overlay-input-wrap');
+    resultsEl = el.querySelector('#search-overlay-results') || el.querySelector('.search-overlay-results');
+    closeButtons = el.querySelectorAll('[data-close="search"]');
+    searchPanel = el.querySelector('.search-overlay-panel');
+    headerSearchInput = options.headerSearchInput || null;
+
+    indexUrlGetter = (function () {
+      var url = '';
+      return function getUrl() {
+        if (url) return url;
+        var domain = overlayEl.getAttribute('data-domain') || '';
+        url = getSearchIndexUrl(domain);
+        return url;
+      };
+    })();
+    fetchSearchIndex = createSearchIndexFetcher(indexUrlGetter, log);
+
+    if (overlayInput) {
+      overlayInput.addEventListener('input', onSearchInput);
+      overlayInput.addEventListener('keydown', onSearchKeydown);
+    }
+    if (searchPanel) {
+      searchPanel.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          closeSearch();
+          e.preventDefault();
+          return;
+        }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+          if (handleSearchNavigationKey(e)) e.preventDefault();
+        }
+      });
+    }
+    if (resultsEl) {
+      resultsEl.addEventListener('mouseover', function (e) {
+        var item = e.target && e.target.closest ? e.target.closest('.search-overlay-item') : null;
+        if (!item || !resultsEl.contains(item)) return;
+        setMouseHighlight(item);
+      });
+      resultsEl.addEventListener('mouseleave', function () {
+        clearMouseHighlight();
+      });
+    }
+    [].forEach.call(closeButtons || [], function (btn) {
+      if (btn && btn.addEventListener) btn.addEventListener('click', closeSearch);
+    });
+    log('init', 'overlay bound');
+  }
+
+  window.SearchManager = {
+    init: init,
+    openSearch: openSearch,
+    closeSearch: closeSearch
+  };
+})();
+
+</script>
+<script type="application/javascript">
+'use strict';
+(function () {
+  var doc = document;
+  var log = function () {
+    try {
+      if (typeof console !== 'undefined' && console.log) {
+        console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments)));
+      }
+    } catch (e) { /* noop */ }
+  };
+
+  function onReady() {
+    var cb = doc.getElementById('sidebar-toggle-cb');
+    var labels = doc.querySelectorAll('label[for="sidebar-toggle-cb"]');
+    log('DOM check', 'checkbox=', !!cb, 'labels=', labels ? labels.length : 0);
+
+    // 侧栏：同步 body 类名（兼容不支持 :has() 的浏览器）
+    function syncSidebar() {
+      if (cb && doc.body) doc.body.classList.toggle('sidebar-opened', cb.checked);
+    }
+    if (cb) cb.addEventListener('change', syncSidebar);
+    [].forEach.call(labels || [], function (el) {
+      if (el && el.addEventListener) el.addEventListener('click', syncSidebar);
+    });
+    syncSidebar();
+
+    var searchOverlay = doc.getElementById('search-overlay');
+    var headerSearchInput = doc.querySelector('.header-search-input');
+    var headerSearchIcon = doc.querySelector('.header-search-icon');
+
+    if (typeof window.SearchManager !== 'undefined' && searchOverlay) {
+      window.SearchManager.init(searchOverlay, { headerSearchInput: headerSearchInput || undefined });
+      function onOpenSearch(e) {
+        e.preventDefault();
+        window.SearchManager.openSearch();
+      }
+      if (headerSearchInput) headerSearchInput.addEventListener('click', onOpenSearch);
+      if (headerSearchIcon) headerSearchIcon.addEventListener('click', onOpenSearch);
+      doc.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+          e.preventDefault();
+          window.SearchManager.openSearch();
+        }
+      }, true);
+    }
+  }
+
+  if (doc.readyState === 'loading') {
+    doc.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
+  }
+})();
+</script>
+
+
+    <main class="site-main">
+        <div class="site-content">
+            <article class="post tag-getting-started">
+                <header class="cover post-header">
+                    <div class="cover-bg" >
+
+                        
+                            <img srcset="https://da1v4d.github.io/post-images/allatori-maven-plugin.webp 300w, https://da1v4d.github.io/post-images/allatori-maven-plugin.webp 600w, https://da1v4d.github.io/post-images/allatori-maven-plugin.webp 800w, https://da1v4d.github.io/post-images/allatori-maven-plugin.webp 1600w, https://da1v4d.github.io/post-images/allatori-maven-plugin.webp 2000w"
+                                 sizes="100vw" src="https://da1v4d.github.io/post-images/allatori-maven-plugin.webp" alt="Allatori Maven Plugin"/>
+                        
+
+                    </div>
+                    <div class="cover-content">
+                        <div class="inner">
+                            <div class="post-tags">
+                                
+                                    
+                                        <a href="https://da1v4d.github.io/tag/sg3MDIswNj/">maven&nbsp;&nbsp;</a>
+                                    
+                                        <a href="https://da1v4d.github.io/tag/XzEHCMPN89/">java&nbsp;&nbsp;</a>
+                                    
+                                
+                            </div>
+                            <h1 class="post-title">Allatori Maven Plugin</h1>
+                            <div class="post-meta">
+                                <span class="post-meta-wrap">
+                                    <img class="author-avatar"
+                                         srcset="https://da1v4d.github.io/media/images/avatar.png, https://da1v4d.github.io/media/images/avatar.png 2x"
+                                         src="https://da1v4d.github.io/media/images/avatar.png" alt=""/>
+                                    <span class="post-author">4158字</span>
+                                    <time class="published" datetime="2026-03-06">2026-03-06</time>
+                                </span>
+                                <div>18 min read</div>
+                            </div>
+                            <a href="#post-content" class="arrow-down" data-scroll><span class="screen-reader-text">Scroll Down</span></a>
+                        </div>
+                    </div>
+                </header>
+                <div class="post-body-wrap">
+                    <nav id="post-toc" class="post-toc" aria-label="文章目录"></nav>
+                    <div id="post-body-inner" class="inner">
+                        <div id="post-content" class="post-content">
+                            <p>Allatori Maven Plugin 是一个用于 <a href="http://allatori.com/">Allatori Java 混淆器</a> 的 Maven 插件，在 Maven 构建过程中自动执行 Java 字节码混淆，无需单独安装 Allatori 或手写命令行。</p>
+<!--more-->
+<hr>
+<h2 id="一-设计原理">一、设计原理</h2>
+<h3 id="11-为什么需要本插件">1.1 为什么需要本插件</h3>
+<ul>
+<li><strong>Allatori 官方用法</strong>：通常需要单独下载 Allatori、配置 <code>allatori.xml</code>，再在命令行执行 <code>java -jar allatori.jar config.xml</code>，且配置中的路径往往需要与 Maven 的 <code>target</code>、<code>finalName</code> 等保持一致。</li>
+<li><strong>本插件的目标</strong>：把“读配置 → 替换 Maven 变量 → 调用 Allatori”这一流程固化到 Maven 的 <strong>package</strong> 阶段，实现“打包即混淆”，并支持 <code>${var}</code> 与 <code>@var@</code> 两种变量格式，便于与标准 Maven 及 Spring Boot 资源过滤习惯一致。</li>
+</ul>
+<h3 id="12-与-maven-生命周期的关系">1.2 与 Maven 生命周期的关系</h3>
+<ul>
+<li>插件唯一 Goal：<code>obfuscate</code>，绑定在 <strong>LifecyclePhase.PACKAGE</strong>。</li>
+<li>执行顺序：在 <code>package</code> 阶段，Maven 会先完成 <code>jar:jar</code>（或 <code>war:war</code> 等），生成未混淆的产物（如 <code>target/xxx.jar</code>），随后执行本插件的 <code>obfuscate</code>，读取用户提供的 <code>allatori.xml</code>，替换其中的 Maven 变量，再以 <strong>子进程</strong> 方式调用 <code>java -jar allatori.jar &lt;处理后的配置文件&gt;</code>，在指定输出目录生成混淆后的 jar。</li>
+<li>设计要点：<strong>不修改 Maven 内置的打包逻辑</strong>，只在打包之后增加一步“混淆”，输入为已有 jar + 配置文件，输出为混淆后的 jar，便于与 CI/CD 和现有 pom 配置兼容。</li>
+</ul>
+<h3 id="13-变量替换与单一事实来源">1.3 变量替换与“单一事实来源”</h3>
+<ul>
+<li>配置文件中往往需要“构建输出目录”“最终 jar 名”等，这些在 Maven 中已有唯一事实来源（如 <code>project.build.directory</code>、<code>project.build.finalName</code>）。</li>
+<li>插件在 <strong>不修改用户原始配置文件</strong> 的前提下，将配置内容读入内存，做 <strong>纯字符串级</strong> Maven 变量替换（<code>${...}</code> 与 <code>@...@</code>），再写出到构建目录下的临时文件（<code>allatori-processed.xml</code>），并用该临时文件驱动 Allatori；<strong>不解析 XML 结构</strong>，不依赖 Allatori 的 schema，从而保证“路径与名称”全部来自 Maven，避免手写绝对路径或重复维护多份配置。</li>
+<li>替换后的配置文件完整内容会逐行输出到 Maven 日志，便于在 CI 或本地排查变量是否按预期替换。</li>
+</ul>
+<h3 id="14-allatori-的提供方式">1.4 Allatori 的提供方式</h3>
+<ul>
+<li><strong>内置模式</strong>：插件 resources 中可携带 <code>lib/allatori.jar</code>，运行时若未配置 <code>jarFile</code> 或指向的文件不存在，则从 classpath 解压到系统临时目录（如 <code>java.io.tmpdir/allatori-maven-plugin/allatori.jar</code>）再调用，执行完毕后可选清理临时文件。</li>
+<li><strong>外置模式</strong>：用户通过参数 <code>jarFile</code> 指定本机已有的 Allatori jar，插件直接使用，便于升级 Allatori 版本</li>
+</ul>
+<hr>
+<h2 id="二-底层设计">二、底层设计</h2>
+<h3 id="21-整体架构">2.1 整体架构</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                        Maven Build (package phase)                        │
+└─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  AllatoriMojo.execute()                                                  │
+│  ┌──────────────┐   ┌─────────────────────┐   ┌──────────────────────┐  │
+│  │ 解析/校验参数  │ → │ 解析 Allatori JAR   │ → │ 校验 config 与 outDir │  │
+│  └──────────────┘   └─────────────────────┘   └──────────────────────┘  │
+│         │                     │                           │               │
+│         ▼                     ▼                           ▼               │
+│  ┌──────────────┐   ┌─────────────────────┐   ┌──────────────────────┐  │
+│  │ processConfig │   │ replaceMavenVars   │   │ executeAllatori       │  │
+│  │ File()        │   │ (${var} / @var@)   │   │ (ProcessBuilder)     │  │
+│  └──────────────┘   └─────────────────────┘   └──────────────────────┘  │
+│         │                     │                           │               │
+│         └─────────────────────┴───────────────────────────┘               │
+│                                      │                                     │
+│                      输出：allatori-processed.xml → Allatori 子进程        │
+└─────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<ul>
+<li><strong>单一 Mojo</strong>：所有逻辑集中在 <code>AllatoriMojo</code>，通过 <code>@Parameter</code> 注入 <code>project</code>、<code>configFile</code>、<code>jarFile</code>、<code>outputDirectory</code>、<code>skip</code>，无额外 Mojo 或复杂依赖树。</li>
+<li><strong>三步流程</strong>：① 确定 Allatori jar（内置解压或用户指定）→ ② 处理配置文件（UTF-8 读写 + 变量替换 + 写临时文件）→ ③ 以 <code>ProcessBuilder</code> 在 <code>outputDirectory</code> 下执行 <code>java -jar allatori.jar &lt;processed.xml&gt;</code>，并消费标准输出/错误，根据退出码决定成功或抛 <code>MojoExecutionException</code>。</li>
+<li><strong>异常与清理</strong>：任一步骤抛出的 <code>Exception</code> 在 <code>execute()</code> 的 catch 中统一包装为 <code>MojoExecutionException</code>；仅当本次使用了“插件解压的” Allatori jar 时，在 <code>finally</code> 中尝试删除该临时 jar（失败仅打 warn）。</li>
+</ul>
+<h3 id="22-模块职责">2.2 模块职责</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>allatori-maven-plugin</strong></td>
+<td>提供唯一 Goal <code>obfuscate</code>，实现配置处理与 Allatori 调用；resources 内可含 <code>lib/allatori.jar</code> 供内置使用。</td>
+</tr>
+<tr>
+<td><strong>allatori-plugin-test</strong></td>
+<td>独立 Maven 项目，依赖并绑定插件，用于人工/集成验证“打包 + 混淆”全流程。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-数据流与文件约定">2.3 数据流与文件约定</h3>
+<ul>
+<li><strong>输入</strong>：用户项目中的 <code>allatori.xml</code>（路径由 <code>configFile</code> 指定）、Maven <code>project</code> 属性、可选 <code>jarFile</code>。</li>
+<li><strong>中间文件</strong>：<code>&lt;outputDirectory&gt;/allatori-processed.xml</code>，即替换变量后的配置；每次执行都会覆盖该文件，并在日志中<strong>逐行输出其完整内容</strong>（<code>getLog().info(line)</code>），便于排错。</li>
+<li><strong>输出</strong>：由 Allatori 根据 <code>allatori-processed.xml</code> 中的 <code>&lt;input&gt;&lt;jar out=&quot;...&quot;/&gt;</code> 等配置写入，通常为同一 <code>outputDirectory</code> 下的混淆后 jar（如 <code>*-obfuscated.jar</code>）。</li>
+<li><strong>工作目录</strong>：<code>ProcessBuilder.directory(outputDirectory)</code>，确保 Allatori 内相对路径与 Maven 构建目录一致。</li>
+<li><strong>临时 Allatori jar</strong>（仅内置模式）：解压到 <code>System.getProperty(&quot;java.io.tmpdir&quot;)/allatori-maven-plugin/allatori.jar</code>；若该文件已存在则不会重复解压（多次构建可复用）；本次执行若为插件解压所得，则在 <code>finally</code> 中尝试删除并打日志（删除失败仅 warn，不抛错）。</li>
+</ul>
+<h3 id="24-扩展与约束">2.4 扩展与约束</h3>
+<ul>
+<li><strong>扩展</strong>：如需支持更多变量，只需在 <code>getMavenProperty(String)</code> 中增加分支或从 <code>project.getProperties()</code> 读取；如需支持多配置文件或 profile，可在 Mojo 层增加参数与循环调用。</li>
+<li><strong>约束</strong>：不在插件内实现混淆算法，不解析 Allatori 的 XML 语义，仅做字符串级变量替换与进程调用，保证“插件只做编排，混淆逻辑完全由 Allatori 负责”。</li>
+</ul>
+<hr>
+<h2 id="三-代码实现">三、代码实现</h2>
+<h3 id="31-核心类与注解">3.1 核心类与注解</h3>
+<ul>
+<li><strong>类</strong>：<code>com.dv.maven.plugin.AllatoriMojo</code>，继承 <code>org.apache.maven.plugin.AbstractMojo</code>。</li>
+<li><strong>Goal 与阶段</strong>：<code>@Mojo(name = &quot;obfuscate&quot;, defaultPhase = LifecyclePhase.PACKAGE)</code>，即执行 <code>mvn package</code> 时会触发 <code>obfuscate</code>。</li>
+</ul>
+<h3 id="32-参数parameter">3.2 参数（@Parameter）</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>说明</th>
+<th>默认/必填</th>
+<th>命令行覆盖属性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>project</code></td>
+<td>MavenProject</td>
+<td>当前 Maven 项目</td>
+<td><code>${project}</code>，只读</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>configFile</code></td>
+<td>File</td>
+<td>Allatori 配置文件路径</td>
+<td>必填，无默认</td>
+<td><code>allatori.configFile</code></td>
+</tr>
+<tr>
+<td><code>jarFile</code></td>
+<td>File</td>
+<td>Allatori 可执行 jar 路径</td>
+<td>可选；不填或不存在则用内置</td>
+<td><code>allatori.jarFile</code></td>
+</tr>
+<tr>
+<td><code>outputDirectory</code></td>
+<td>File</td>
+<td>混淆输出目录，兼作 Allatori 工作目录</td>
+<td><code>${project.build.directory}</code></td>
+<td><code>allatori.outputDirectory</code></td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>boolean</td>
+<td>是否跳过混淆</td>
+<td><code>false</code></td>
+<td><code>allatori.skip</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>命令行覆盖示例：<code>mvn package -Dallatori.skip=true</code>、<code>mvn package -Dallatori.configFile=path/to/config.xml</code>。</li>
+</ul>
+<h3 id="33-执行流程execute">3.3 执行流程（execute）</h3>
+<ol>
+<li><strong>skip</strong>：若 <code>skip == true</code>，直接 return，不执行后续逻辑。</li>
+<li><strong>解析 Allatori jar</strong>：若 <code>jarFile == null</code> 或不存在，调用 <code>extractAllatoriJar()</code> 从 <code>getClass().getResourceAsStream(&quot;/lib/allatori.jar&quot;)</code> 解压到 <code>java.io.tmpdir/allatori-maven-plugin/allatori.jar</code>，并标记为临时文件以便 finally 中删除。</li>
+<li><strong>校验</strong>：检查 <code>jarFile</code>、<code>configFile</code> 存在性，若不存在则抛出 <code>MojoExecutionException</code>；确保 <code>outputDirectory</code> 存在（不存在则 <code>mkdirs()</code>）。</li>
+<li><strong>处理配置</strong>：<code>processConfigFile()</code> → 见下文。</li>
+<li><strong>执行 Allatori</strong>：<code>executeAllatori(processedConfigFile)</code> → 见下文。</li>
+<li><strong>清理</strong>：在 finally 中若存在“本次解压的”临时 jar，则尝试删除并打日志。</li>
+</ol>
+<h3 id="34-配置处理processconfigfile">3.4 配置处理（processConfigFile）</h3>
+<ul>
+<li><strong>读取</strong>：<code>Files.readAllBytes(configFile.toPath())</code>，再以 <strong>UTF-8</strong> 解码为字符串（源码使用 <code>&quot;UTF-8&quot;</code> 字面量）。</li>
+<li><strong>替换</strong>：调用 <code>replaceMavenVariables(content)</code> 得到新字符串（不修改原文件）。</li>
+<li><strong>写出</strong>：将结果写入 <code>&lt;outputDirectory&gt;/allatori-processed.xml</code>，编码 <strong>UTF-8</strong>（<code>content.getBytes(&quot;UTF-8&quot;)</code>）；若文件已存在则覆盖。</li>
+<li><strong>日志</strong>：写入后使用 <code>BufferedReader</code> + <code>InputStreamReader(..., &quot;UTF-8&quot;)</code> 按行读取该文件，<strong>每一行</strong>通过 <code>getLog().info(line)</code> 输出到控制台，便于调试与审计。</li>
+<li><strong>异常</strong>：任何 <code>IOException</code> 包装为 <code>MojoExecutionException(&quot;Failed to process Allatori config file&quot;, e)</code> 抛出。</li>
+</ul>
+<h3 id="35-变量替换replacemavenvariables">3.5 变量替换（replaceMavenVariables）</h3>
+<ul>
+<li><strong>执行顺序</strong>：先处理所有 <strong><code>${var}</code></strong>，再处理所有 <strong><code>@var@</code></strong>；两种格式互不嵌套解析。</li>
+<li><strong><code>${var}</code> 规则</strong>：从当前内容中找 <code>&quot;${&quot;</code>，再找其后第一个 <code>&quot;}&quot;</code>，中间子串为变量名；若 <code>getMavenProperty(var)</code> 非 null 则整体替换为值，并从替换后位置继续找下一个 <code>&quot;${&quot;</code>；否则从该 <code>&quot;}&quot;</code> 之后继续找。若找不到配对 <code>&quot;}&quot;</code> 则结束本轮。</li>
+<li><strong><code>@var@</code> 规则</strong>：找 <code>&quot;@&quot;</code>，再找其后下一个 <code>&quot;@&quot;</code>，且要求 <code>end &gt; start + 1</code>（即排除 <code>@@</code> 空变量）；中间子串为变量名，替换逻辑同 <code>${}</code>。未匹配的占位符<strong>原样保留</strong>，不抛错。</li>
+<li><strong>注意</strong>：嵌套写法如 <code>${a${b}}</code> 会按“第一个 <code>${</code> 到第一个 <code>}</code>”截取，得到变量名 <code>a${b</code>，通常非预期；建议避免嵌套。</li>
+</ul>
+<h3 id="36-maven-属性解析getmavenproperty">3.6 Maven 属性解析（getMavenProperty）</h3>
+<ul>
+<li><strong>解析顺序</strong>：① <code>project.getProperties().getProperty(propertyName)</code>（pom 的 <code>&lt;properties&gt;</code> 及 Maven 内置属性）；② <code>System.getProperty(propertyName)</code>；③ 内置 switch 写死的六项：<code>project.basedir</code>（<code>project.getBasedir().getAbsolutePath()</code>）、<code>project.build.directory</code>、<code>project.build.outputDirectory</code>、<code>project.build.finalName</code>、<code>project.artifactId</code>、<code>project.version</code>。</li>
+<li><strong>返回值</strong>：均无则返回 <code>null</code>；调用方在 <code>replaceMavenVariables</code> 中不会替换该占位符（保留原样）。</li>
+</ul>
+<h3 id="37-执行-allatoriexecuteallatori">3.7 执行 Allatori（executeAllatori）</h3>
+<ul>
+<li><strong>命令</strong>：<code>java -Xms128m -Xmx512m -jar &lt;jarFile 绝对路径&gt; &lt;processedConfigFile 绝对路径&gt;</code>；JVM 堆固定为 128m/512m，如需调整需改源码。</li>
+<li><strong>进程</strong>：<code>ProcessBuilder(command)</code>，<code>processBuilder.directory(outputDirectory)</code>，<code>redirectErrorStream(true)</code>（标准错误合并到标准输出）。</li>
+<li><strong>输出消费</strong>：启动后使用 <code>BufferedReader(new InputStreamReader(process.getInputStream()))</code> 逐行读取（<strong>未指定 charset，使用 JVM 默认编码</strong>），每行 <code>getLog().info(line)</code>，并拼入 <code>StringBuilder</code> 供失败时输出。</li>
+<li><strong>退出码</strong>：<code>process.waitFor()</code>；若 <code>exitCode != 0</code>，先 <code>getLog().error(...)</code> 输出完整内容，再抛 <code>MojoExecutionException(&quot;Allatori execution failed with exit code: &quot; + exitCode + &quot;. Output: &quot; + output)</code>。</li>
+<li><strong>异常</strong>：<code>IOException</code> 或 <code>InterruptedException</code> 时包装为 <code>MojoExecutionException(&quot;Failed to execute Allatori obfuscator&quot;, e)</code>；若为 <code>InterruptedException</code> 会调用 <code>Thread.currentThread().interrupt()</code> 恢复中断状态。</li>
+<li><strong>清理</strong>：<code>finally</code> 中若 <code>process != null</code> 则调用 <code>process.destroy()</code>（未使用 <code>destroyForcibly()</code>，为正常结束子进程）。</li>
+</ul>
+<h3 id="38-内置-jar-解压extractallatorijar">3.8 内置 jar 解压（extractAllatoriJar）</h3>
+<ul>
+<li><strong>临时目录</strong>：<code>new File(System.getProperty(&quot;java.io.tmpdir&quot;), &quot;allatori-maven-plugin&quot;)</code>，若不存在则 <code>mkdirs()</code>，失败抛 <code>MojoExecutionException</code>。</li>
+<li><strong>目标文件</strong>：<code>&lt;tempDir&gt;/allatori.jar</code>。若该文件<strong>已存在</strong>则直接返回，不重复解压（多模块或多次构建可复用）。</li>
+<li><strong>解压来源</strong>：<code>getClass().getResourceAsStream(&quot;/lib/allatori.jar&quot;)</code>；若为 null 抛 <code>MojoExecutionException(&quot;Embedded Allatori jar not found in plugin resources&quot;)</code>。</li>
+<li><strong>拷贝</strong>：4KB 缓冲区，<code>InputStream.read(buffer)</code> → <code>OutputStream.write(buffer, 0, bytesRead)</code>，直到读尽。任何 <code>IOException</code> 包装后抛出。</li>
+</ul>
+<h3 id="39-未使用的默认配置方法extractdefaultconfigfile">3.9 未使用的默认配置方法（extractDefaultConfigFile）</h3>
+<ul>
+<li>源码中存在 <code>extractDefaultConfigFile()</code>：从 <code>/allatori.xml</code> 资源解压到临时目录的 <code>allatori.xml</code>。<strong>当前 Mojo 从未调用该方法</strong>，配置文件必须通过 <code>configFile</code> 显式指定，无“默认配置”行为。</li>
+</ul>
+<h3 id="310-异常与失败行为汇总">3.10 异常与失败行为汇总</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>skip == true</code></td>
+<td>直接 return，打 info 日志，不抛错。</td>
+</tr>
+<tr>
+<td>内置 jar 资源不存在</td>
+<td><code>MojoExecutionException(&quot;Embedded Allatori jar not found in plugin resources&quot;)</code>。</td>
+</tr>
+<tr>
+<td>解压/创建临时目录失败</td>
+<td><code>MojoExecutionException(&quot;Failed to create temporary directory: ...&quot;)</code> 或 <code>&quot;Failed to extract Allatori jar&quot;</code>。</td>
+</tr>
+<tr>
+<td>jarFile / configFile 不存在</td>
+<td><code>MojoExecutionException(&quot;Allatori jar/file config file not found: ...&quot;)</code>。</td>
+</tr>
+<tr>
+<td>处理配置文件 IO 异常</td>
+<td><code>MojoExecutionException(&quot;Failed to process Allatori config file&quot;, e)</code>。</td>
+</tr>
+<tr>
+<td>Allatori 子进程退出码非 0</td>
+<td><code>MojoExecutionException(&quot;Allatori execution failed with exit code: ...&quot;)</code>。</td>
+</tr>
+<tr>
+<td>启动子进程或 waitFor 异常</td>
+<td><code>MojoExecutionException(&quot;Failed to execute Allatori obfuscator&quot;, e)</code>。</td>
+</tr>
+<tr>
+<td>任意其他 Exception</td>
+<td><code>execute()</code> 的 catch 统一包装为 <code>MojoExecutionException(&quot;Error executing Allatori obfuscation&quot;, e)</code>。</td>
+</tr>
+<tr>
+<td>临时 jar 删除失败</td>
+<td>仅 <code>getLog().warn(...)</code>，不抛错。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="四-使用说明">四、使用说明</h2>
+<h3 id="41-功能特性">4.1 功能特性</h3>
+<ul>
+<li>支持 Maven 变量替换：<code>${var}</code> 与 <code>@var@</code>（兼容 Spring Boot 资源过滤习惯）。</li>
+<li>自动读取项目中的 Allatori 配置文件，并输出“处理后的配置”到构建目录，便于排查。</li>
+<li>支持内置 Allatori jar（从插件 resources 解压）或通过 <code>jarFile</code> 指定外置 jar。</li>
+<li>配置文件与输出统一使用 UTF-8。</li>
+<li>执行完毕后可清理本次解压的临时 jar。</li>
+</ul>
+<h3 id="42-安装与绑定">4.2 安装与绑定</h3>
+<p>在需要使用混淆的 Maven 项目的 <code>pom.xml</code> 中：</p>
+<pre><code class="language-xml">&lt;build&gt;
+    &lt;plugins&gt;
+        &lt;plugin&gt;
+            &lt;groupId&gt;com.dv&lt;/groupId&gt;
+            &lt;artifactId&gt;allatori-maven-plugin&lt;/artifactId&gt;
+            &lt;version&gt;1.0&lt;/version&gt;
+            &lt;executions&gt;
+                &lt;execution&gt;
+                    &lt;id&gt;obfuscate&lt;/id&gt;
+                    &lt;phase&gt;package&lt;/phase&gt;
+                    &lt;goals&gt;
+                        &lt;goal&gt;obfuscate&lt;/goal&gt;
+                    &lt;/goals&gt;
+                &lt;/execution&gt;
+            &lt;/executions&gt;
+            &lt;configuration&gt;
+                &lt;configFile&gt;${project.basedir}/allatori/allatori.xml&lt;/configFile&gt;
+            &lt;/configuration&gt;
+        &lt;/plugin&gt;
+    &lt;/plugins&gt;
+&lt;/build&gt;
+</code></pre>
+<ul>
+<li>若需跳过混淆（如仅做编译测试）：<code>mvn package -Dallatori.skip=true</code>。</li>
+</ul>
+<h3 id="43-配置项一览">4.3 配置项一览</h3>
+<table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>说明</th>
+<th>默认值</th>
+<th>命令行覆盖（-D）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>configFile</code></td>
+<td>Allatori 配置文件路径（必填）</td>
+<td>无，需在 configuration 中指定</td>
+<td><code>-Dallatori.configFile=路径</code></td>
+</tr>
+<tr>
+<td><code>jarFile</code></td>
+<td>Allatori 可执行 jar 路径</td>
+<td>不指定则使用插件内置版本（若存在）</td>
+<td><code>-Dallatori.jarFile=路径</code></td>
+</tr>
+<tr>
+<td><code>outputDirectory</code></td>
+<td>混淆输出目录，亦为 Allatori 工作目录</td>
+<td><code>${project.build.directory}</code></td>
+<td><code>-Dallatori.outputDirectory=路径</code></td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>是否跳过混淆</td>
+<td><code>false</code></td>
+<td><code>-Dallatori.skip=true</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>命令行传入的属性会覆盖 pom 中 <code>&lt;configuration&gt;</code> 的同一项，便于本地或 CI 临时切换配置而不改 pom。</li>
+</ul>
+<h3 id="44-创建-allatori-配置文件">4.4 创建 Allatori 配置文件</h3>
+<p>在项目根目录下创建目录 <code>allatori</code>，并新建 <code>allatori.xml</code>（或其它路径，与 <code>configFile</code> 一致）。示例：</p>
+<pre><code class="language-xml">&lt;config&gt;
+    &lt;input&gt;
+        &lt;jar in=&quot;${project.build.finalName}.jar&quot; out=&quot;${project.build.finalName}-obfuscated.jar&quot;/&gt;
+    &lt;/input&gt;
+    &lt;keep-names&gt;
+        &lt;class access=&quot;protected+&quot;&gt;
+            &lt;field access=&quot;protected+&quot;/&gt;
+            &lt;method access=&quot;protected+&quot;/&gt;
+        &lt;/class&gt;
+        &lt;class template=&quot;class *Controller&quot;&gt;
+            &lt;method template=&quot;private+ *(**)&quot; parameters=&quot;keep&quot;/&gt;
+        &lt;/class&gt;
+    &lt;/keep-names&gt;
+    &lt;ignore-classes&gt;
+        &lt;class template=&quot;class *springframework*&quot;/&gt;
+        &lt;class template=&quot;class *shardingjdbc*&quot;/&gt;
+        &lt;class template=&quot;class *jni*&quot;/&gt;
+        &lt;class template=&quot;class *alibaba*&quot;/&gt;
+        &lt;class template=&quot;class *persistence*&quot;/&gt;
+    &lt;/ignore-classes&gt;
+&lt;/config&gt;
+</code></pre>
+<ul>
+<li><code>in</code>/<code>out</code> 可使用 Maven 变量；Allatori 的工作目录为 <code>outputDirectory</code>，因此 <code>in</code> 一般为 <code>target/&lt;finalName&gt;.jar</code> 对应的文件名（或相对路径）。</li>
+<li>Spring Boot 项目若使用 <code>@var@</code> 风格，可写成：<code>in=&quot;@project.build.finalName@.jar&quot; out=&quot;@project.build.finalName@-obfuscated.jar&quot;</code>。</li>
+</ul>
+<h3 id="45-内置变量可由插件替换">4.5 内置变量（可由插件替换）</h3>
+<ul>
+<li><code>project.basedir</code> — 项目根目录绝对路径</li>
+<li><code>project.build.directory</code> — 构建输出目录（如 <code>target</code>）</li>
+<li><code>project.build.outputDirectory</code> — 编译输出目录（如 <code>target/classes</code>）</li>
+<li><code>project.build.finalName</code> — 最终构建产物名（不含扩展名）</li>
+<li><code>project.artifactId</code> — 项目 artifactId</li>
+<li><code>project.version</code> — 项目版本</li>
+</ul>
+<p>以及 pom 中 <code>&lt;properties&gt;</code> 和系统属性中的任意键，只要在配置文件中写成 <code>${key}</code> 或 <code>@key@</code> 即可。</p>
+<ul>
+<li><strong>变量替换细节</strong>：先替换所有 <code>${...}</code>，再替换所有 <code>@...@</code>；无法解析的占位符保留原样，不会报错。避免在配置中写嵌套变量（如 <code>${a${b}}</code>），否则可能被截断为 <code>a${b</code>。</li>
+</ul>
+<h3 id="46-构建与运行">4.6 构建与运行</h3>
+<ul>
+<li>正常打包并混淆：<code>mvn clean package</code> 或 <code>mvn clean install</code>。</li>
+<li>插件会在 package 阶段自动执行混淆，控制台可看到处理后的配置文件路径及内容（若开启日志打印）。</li>
+</ul>
+<h3 id="47-常见问题">4.7 常见问题</h3>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>处理建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Allatori config file not found</td>
+<td>确认 <code>configFile</code> 指向的路径存在（如 <code>allatori/allatori.xml</code>），或路径中 Maven 变量是否在运行时已解析。</td>
+</tr>
+<tr>
+<td>混淆后的 jar 无法运行</td>
+<td>检查 <code>keep-names</code>/<code>ignore-classes</code> 等，保留入口类、main 方法及反射/序列化用到的类与成员。</td>
+</tr>
+<tr>
+<td>变量未被替换</td>
+<td>确认写法为 <code>${var}</code> 或 <code>@var@</code>，且变量名与 <code>getMavenProperty</code> 支持的一致（或已在 project.properties 中定义）。</td>
+</tr>
+<tr>
+<td>内存不足</td>
+<td>运行 Maven 时加大 JVM：<code>mvn package -Xms512m -Xmx1024m</code>。Allatori 子进程固定 <code>-Xms128m -Xmx512m</code>，若需调整需修改插件源码 <code>executeAllatori</code> 中的 command 列表。</td>
+</tr>
+<tr>
+<td>Embedded Allatori jar not found</td>
+<td>插件未打包 <code>lib/allatori.jar</code> 或 classpath 无法加载；请在 <code>allatori-maven-plugin/src/main/resources/lib/</code> 下放置 <code>allatori.jar</code>，或使用 <code>-Dallatori.jarFile=...</code> 指定外置 jar。</td>
+</tr>
+<tr>
+<td>临时 jar 删除失败</td>
+<td>多为文件被占用或权限问题；不影响构建结果，仅会打出 warn。可手动清理 <code>java.io.tmpdir/allatori-maven-plugin/</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="48-混淆结果展示">4.8 混淆结果展示</h3>
+<p>执行 <code>mvn clean package</code> 后，插件在 package 阶段自动完成混淆，控制台会输出处理后的配置及 Allatori 执行结果。以下为混淆结果展示（控制台输出截图，作为文档的一部分嵌入）：</p>
+<h2 id=""><img src="https://da1v4d.github.io/post-images/1772758017577.png" alt="混淆结果展示" loading="lazy"></h2>
+<h2 id="五-项目结构">五、项目结构</h2>
+<pre><code>allatori-plugin/
+├── pom.xml                          # 父 POM，聚合两模块
+├── img/                             # 文档图片
+│   └── img.png                      # 混淆结果展示截图
+├── allatori-maven-plugin/           # 插件模块
+│   ├── pom.xml                      # packaging: maven-plugin
+│   └── src/main/
+│       ├── java/com/dv/maven/plugin/
+│       │   └── AllatoriMojo.java    # 唯一 Mojo 实现
+│       └── resources/
+│           └── lib/
+│               └── allatori.jar     # 可选：内置 Allatori（按需放置）
+├── allatori-plugin-test/            # 测试用 Maven 项目
+│   ├── pom.xml                      # 依赖并绑定 allatori-maven-plugin
+│   ├── allatori/
+│   │   └── allatori.xml             # 测试用 Allatori 配置
+│   └── src/main/java/com/dv/
+│       └── App.java
+└── README.md
+</code></pre>
+<hr>
+<h2 id="六-构建与测试插件本身">六、构建与测试插件本身</h2>
+<h3 id="61-技术栈与构建要求">6.1 技术栈与构建要求</h3>
+<ul>
+<li><strong>JDK</strong>：插件源码与编译目标为 <strong>Java 8</strong>（<code>maven.compiler.source/target: 1.8</code>）。</li>
+<li><strong>Maven</strong>：依赖 <code>maven-plugin-api</code>、<code>maven-plugin-annotations</code>、<code>maven-core</code>（版本 3.8.6），以及 <code>maven-resources-plugin</code>（3.3.1）；打包类型为 <code>maven-plugin</code>，使用 <code>maven-plugin-plugin</code> 3.7.0 生成描述符。</li>
+<li><strong>Goal 前缀</strong>：<code>goalPrefix</code> 为 <code>allatori</code>，即命令行可执行 <code>mvn allatori:obfuscate</code>（若未绑定到生命周期）。</li>
+<li><strong>编码</strong>：构建与配置文件读写统一 <strong>UTF-8</strong>（<code>project.build.sourceEncoding</code> 与源码中 <code>&quot;UTF-8&quot;</code>）；子进程标准输出读取使用 JVM 默认编码（未显式传 charset）。</li>
+</ul>
+<h3 id="62-安装与验证">6.2 安装与验证</h3>
+<ul>
+<li>
+<p><strong>安装插件到本地仓库</strong>（在仓库根目录执行）：<br>
+<code>mvn clean install</code></p>
+</li>
+<li>
+<p><strong>仅用测试项目验证</strong>：<br>
+<code>cd allatori-plugin-test &amp;&amp; mvn clean package</code><br>
+完成后在 <code>target/</code> 下查看是否生成混淆后的 jar（由 <code>allatori.xml</code> 的 <code>out</code> 决定）；同时可查看 <code>target/allatori-processed.xml</code> 与控制台日志中的“Processed Allatori config file content”确认变量替换结果。</p>
+</li>
+</ul>
+<hr>
+<h2 id="七-版本历史">七、版本历史</h2>
+<ul>
+<li><strong>1.0</strong>：初始版本；Maven 变量替换（<code>${var}</code> / <code>@var@</code>）；内置或外置 Allatori；UTF-8 配置；临时文件清理。</li>
+</ul>
+<hr>
+<h2 id="八-许可证与反馈">八、许可证与反馈</h2>
+<ul>
+<li>本项目采用 MIT 许可证。</li>
+<li>问题与建议欢迎通过 GitHub Issue 或 Pull Request 反馈。</li>
+</ul>
+
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <section class="comments-area">
+    <div class="inner">
+        <h2 class="screen-reader-text">评论</h2>
+        
+    </div>
+</section>
+
+
+            
+                <nav class="post-navigation">
+                    <h2 class="screen-reader-text">Post navigation</h2>
+                    <div class="nav-links">
+                        <a href="https://da1v4d.github.io/post/di-san-fang-api-dui-jie-gui-fan/" class="nav-previous">
+                            <div class="nav-bg" >
+                                
+                                    <img srcset="https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 300w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 600w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 800w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 1600w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 2000w" sizes="(max-width: 800px) 100vw, 50vw" src="https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png" alt="图裂了"/>
+                                
+                            </div>
+                            <div class="nav-inside">
+                                <span class="nav-before">下一篇</span>
+                                <span class="nav-title">如何高效第三方API-技术分享</span>
+                                <span class="nav-date">2026-03-05</span>
+                            </div>
+                        </a>
+                    </div>
+                </nav>
+            
+
+        </div>
+    </main>
+
+    <footer class="site-footer">
+    <div class="inner">
+        <!-- 社交 -->
+        <div class="offsite-links">
+            
+                
+                    <a href="https://github.com/Da1V4d" class="circle" target="_blank" rel="noopener">
+                        <i class="fab fa-github"></i>
+                    </a>
+                
+            
+                
+            
+                
+            
+                
+            
+                
+            
+        </div>
+
+        <div class="site-info">
+            THEME BY <a href="https://github.com/GalaxySuze/gridea-theme-subtle-galaxy">Subtle Galaxy</a>, REFERENCE FROM <a href="https://subtle.justgoodthemes.com/">Subtle</a><br/>
+            Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+        </div>
+        <a href="#page" class="arrow-up" data-scroll><span class="screen-reader-text">Back to the top</span></a>
+    </div>
+</footer>
+
+
+</div>
+
+<a href="#page" class="back-to-top-btn circle" data-scroll aria-label="返回顶部" title="返回顶部">
+  <span class="back-to-top-arrow" aria-hidden="true"></span>
+</a>
+
+<!-- 参考 paper 主题：在不支持 :has() 的浏览器中，将 checkbox 状态同步到 body；[Galaxy Nav] 日志便于 GitHub Pages 排查 -->
+<script type="application/javascript">
+(function() {
+  var log = function() { try { console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {} };
+  function syncSidebar() {
+    var cb = document.getElementById('sidebar-toggle-cb');
+    log('syncSidebar', 'cb=', !!cb, 'body=', !!document.body, 'checked=', cb ? cb.checked : 'n/a');
+    if (cb && document.body) {
+      document.body.classList.toggle('sidebar-opened', cb.checked);
+      log('syncSidebar done', 'body.className=', document.body.className);
+    } else {
+      log('syncSidebar skip', 'missing cb or body');
+    }
+  }
+  function init() {
+    var cb = document.getElementById('sidebar-toggle-cb');
+    var labels = document.querySelectorAll('label[for="sidebar-toggle-cb"]');
+    var hasSupport = false;
+    try { hasSupport = document.documentElement.matches('body:has(a)'); } catch (e) {}
+    log('init', 'checkbox=', !!cb, 'labels=', labels.length, 'location=', location.href, 'CSS :has()=', hasSupport);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncSidebar);
+    else syncSidebar();
+  }
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'sidebar-toggle-cb') {
+      log('checkbox change', 'checked=', e.target.checked);
+      syncSidebar();
+    }
+  });
+  init();
+})();
+</script>
+<!-- 从 domain 解析 base 路径加载本地脚本；[Galaxy Nav] 日志便于 GitHub Pages 排查 -->
+<script type="application/javascript">
+(function() {
+    var log = function() { try { console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {} };
+    var domain = 'https://da1v4d.github.io';
+    var a = document.createElement('a');
+    a.href = domain;
+    var base = (a.pathname || '/').replace(/\/$/, '') + '/';
+    log('scripts', 'domain=', domain, 'base=', base, 'pathname=', a.pathname);
+    function loadScript(src, next) {
+        var s = document.createElement('script');
+        s.src = base + src;
+        log('loadScript', src, 'url=', s.src);
+        if (next) {
+            s.onload = function() { log('loaded', src); next(); };
+            s.onerror = function() { log('FAILED to load', src, 'url=', s.src); next(); };
+        } else {
+            s.onerror = function() { log('FAILED to load', src, 'url=', s.src); };
+        }
+        document.body.appendChild(s);
+    }
+    loadScript('media/scripts/_core/plugins.js', function() {
+        loadScript('media/scripts/_core/custom.js', function() {
+            if (typeof hljs !== 'undefined') hljs.initHighlightingOnLoad();
+        });
+    });
+})();
+</script>
+
+<!-- highlight -->
+<script src="https://cdn.bootcss.com/highlight.js/9.15.8/highlight.min.js"></script>
+
+<script type="application/javascript">
+    // 代码高亮（若上面异步未完成则此处兜底）
+    if (typeof hljs !== 'undefined') hljs.initHighlightingOnLoad();
+</script>
+
+
+
+
+<script type="application/javascript">
+(function() {
+  function slugify(text) {
+    return text.replace(/\s+/g, '-').replace(/[^\w\u4e00-\u9fff\-]/g, '').toLowerCase() || 'heading';
+  }
+  function buildTOC() {
+    var toc = document.getElementById('post-toc');
+    var content = document.getElementById('post-content');
+    if (!toc || !content) return;
+    var headings = content.querySelectorAll('h2, h3, h4');
+    if (headings.length === 0) return;
+    var list = document.createElement('ul');
+    list.className = 'post-toc-list';
+    var count = {};
+    headings.forEach(function(h) {
+      var base = slugify(h.textContent);
+      if (!h.id) {
+        count[base] = (count[base] || 0) + 1;
+        h.id = count[base] > 1 ? base + '-' + count[base] : base;
+      }
+      var id = h.id;
+      var li = document.createElement('li');
+      li.className = 'post-toc-item post-toc-' + h.tagName.toLowerCase();
+      var a = document.createElement('a');
+      a.href = '#' + id;
+      a.textContent = h.textContent;
+      a.setAttribute('data-scroll', '');
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+    var title = document.createElement('div');
+    title.className = 'post-toc-title';
+    title.textContent = '目录';
+    toc.appendChild(title);
+    toc.appendChild(list);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildTOC);
+  else buildTOC();
+})();
+</script>
+
+
+</body>
+</html>

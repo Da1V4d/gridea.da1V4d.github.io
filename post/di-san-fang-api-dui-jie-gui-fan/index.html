@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Greal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="温故而知新"/>
+<meta name="keywords" content="温故而知新"/>
+<link rel="shortcut icon" href="https://da1v4d.github.io/favicon.ico">
+<link rel="stylesheet" href="https://da1v4d.github.io/styles/main.css">
+
+
+<!-- Comment -->
+
+
+<link href="https://cdn.bootcss.com/font-awesome/5.11.2/css/all.min.css" rel="stylesheet">
+
+
+
+</head>
+<body class="post-template">
+<div id="page" class="site">
+
+    <!-- 参考 paper 主题：纯 CSS 导航开关（checkbox + label），不依赖 JS，部署后 404 时导航仍可打开 -->
+<input type="checkbox" id="sidebar-toggle-cb" class="sidebar-checkbox" aria-hidden="true" hidden>
+<header class="site-header">
+    <h1 class="site-title"><a href="https://da1v4d.github.io">Greal</a></h1>
+    <div class="header-search-wrap">
+        <input type="search" class="header-search-input" placeholder="搜索…  Ctrl+K" aria-label="打开搜索" autocomplete="off" readonly>
+        <button type="button" class="header-search-icon" aria-label="打开搜索" title="搜索"><i class="fas fa-search" aria-hidden="true"></i></button>
+    </div>
+    <label for="sidebar-toggle-cb" class="sidebar-toggle" aria-label="打开菜单"><span class="screen-reader-text">Menu</span><span class="icon" aria-hidden="true"></span></label>
+</header>
+
+<!-- 搜索悬浮窗：点击头部搜索框后显示，背景毛玻璃，使用搜索索引做模糊搜索 -->
+<div id="search-overlay" class="search-overlay" aria-hidden="true" data-domain="https://da1v4d.github.io">
+    <div class="search-overlay-backdrop" data-close="search"></div>
+    <div class="search-overlay-panel">
+        <div class="search-overlay-form">
+            <div class="search-overlay-input-wrap">
+                <span class="search-placeholder-left" aria-hidden="true">搜索...</span>
+                <span class="search-placeholder-right" aria-hidden="true">Ctrl+K</span>
+                <input type="search" class="search-overlay-input" placeholder=" " aria-label="搜索" autocomplete="off">
+            </div>
+            <button type="button" class="search-overlay-close" aria-label="关闭搜索" data-close="search">&times;</button>
+        </div>
+        <div class="search-overlay-results" id="search-overlay-results" aria-live="polite"></div>
+    </div>
+</div>
+
+<aside class="sidebar">
+    <div class="sidebar-scrollable">
+        <div class="inner">
+            <div class="widget-area">
+                <!-- 菜单 -->
+                <nav class="site-navigation">
+                    <h2>Greal</h2>
+                    <ul class="menu">
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/"
+                                
+                                >首页</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/archives"
+                                
+                                >归档</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/tag/HaLb7n1iTe/"
+                                
+                                >技术分享</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/tags"
+                                
+                                >标签</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/post/about"
+                                
+                                >关于</a>
+                            </li>
+                        
+                    </ul>
+                </nav>
+
+                <section class="widget widget-about">
+                    <h2 class="widget-title">关于</h2>
+                    <p>温故而知新</p>
+                </section>
+
+                <section class="widget widget-tags">
+                    <h2 class="widget-title">标签</h2>
+                    <div class="tagcloud">
+                        
+                            <a href="https://da1v4d.github.io/tag/HaLb7n1iTe/" class="button">
+                                技术分享
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/-MHu0nqeXU/" class="button">
+                                springboot
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/XzEHCMPN89/" class="button">
+                                java
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/sg3MDIswNj/" class="button">
+                                maven
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/a-SFnGmQWe/" class="button">
+                                Gridea
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                    </div>
+                </section>
+
+            </div>
+            <label for="sidebar-toggle-cb" class="sidebar-toggle" aria-label="关闭菜单"><span class="screen-reader-text">Close</span><span class="icon" aria-hidden="true"></span></label>
+        </div>
+    </div>
+</aside>
+<!-- SearchManager：搜索逻辑独立模块，高内聚；通过 init / openSearch / closeSearch 与页面低耦合 -->
+<script type="application/javascript">
+
+(function () {
+  'use strict';
+
+  var LOG_PREFIX = '[Galaxy Search]';
+  var SEARCH_DEBOUNCE_MS = 180;
+  var SEARCH_FOCUS_DELAY_MS = 50;
+  var SEARCH_INDEX_PATH = 'search-index/index.html';
+  var SEARCH_SUMMARY_MAX_LEN = 120;
+  var SCORE_TITLE = 100;
+  var SCORE_TAG = 50;
+  var SCORE_SUMMARY = 10;
+
+  function log() {
+    try {
+      if (typeof console !== 'undefined' && console.log) {
+        console.log.apply(console, [LOG_PREFIX].concat(Array.prototype.slice.call(arguments)));
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    var s = String(str);
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function defer(fn, delayMs) {
+    delayMs = delayMs == null ? 0 : delayMs;
+    if (typeof requestAnimationFrame !== 'undefined' && delayMs <= 0) {
+      requestAnimationFrame(fn);
+    } else {
+      setTimeout(fn, delayMs);
+    }
+  }
+
+  function getSearchIndexUrl(domain) {
+    if (!domain) return '';
+    var a = document.createElement('a');
+    a.href = domain;
+    var path = a.pathname || '/';
+    var base = path.replace(/\/$/, '') + '/';
+    return base + SEARCH_INDEX_PATH;
+  }
+
+  function decodeHtmlEntitiesForJson(s) {
+    if (typeof s !== 'string') return s;
+    return s
+      .replace(/&#34;/g, '"')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  function parseSearchIndexResponse(raw, logger) {
+    if (typeof raw !== 'string') {
+      if (logger) logger('parseSearchIndexResponse', 'invalid type', typeof raw);
+      return null;
+    }
+    var text = raw.replace(/^\uFEFF/, '').trim();
+    text = decodeHtmlEntitiesForJson(text);
+    if (text.charAt(0) !== '{') {
+      var start = text.indexOf('{');
+      var end = text.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        text = text.slice(start, end + 1);
+      } else {
+        if (logger) logger('parseSearchIndexResponse', 'no JSON object in response');
+        return null;
+      }
+    }
+    try {
+      var data = JSON.parse(text);
+      var posts = Array.isArray(data.posts) ? data.posts : [];
+      if (logger) logger('parseSearchIndexResponse', 'ok', 'posts.length=', posts.length);
+      return posts;
+    } catch (e) {
+      if (logger) logger('search index parse error', e.message, 'preview=', text.slice(0, 120));
+      return null;
+    }
+  }
+
+  function normalizePostItem(item) {
+    if (!item || typeof item !== 'object') return null;
+    return {
+      title: item.title != null ? String(item.title) : '',
+      link: item.link != null ? String(item.link) : '#',
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      summary: item.summary != null ? String(item.summary) : ''
+    };
+  }
+
+  function createSearchIndexFetcher(getUrl, logger) {
+    var cache = null;
+    return function fetchSearchIndex(callback) {
+      if (typeof callback !== 'function') return;
+      if (cache) {
+        if (logger) logger('fetchSearchIndex', 'from cache', 'count=', cache.length);
+        callback(cache);
+        return;
+      }
+      var url = getUrl();
+      if (!url) {
+        if (logger) logger('fetchSearchIndex', 'url empty');
+        callback([]);
+        return;
+      }
+      if (logger) logger('fetchSearchIndex', 'start', 'url=', url);
+      var xhr = new XMLHttpRequest();
+      var done = false;
+      function finish(posts) {
+        if (done) return;
+        done = true;
+        if (posts && posts.length > 0) cache = posts;
+        callback(posts || []);
+      }
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) {
+          var posts = parseSearchIndexResponse(xhr.responseText, logger);
+          finish(posts);
+        } else {
+          if (logger) logger('fetchSearchIndex', 'error', 'status=', xhr.status);
+          finish([]);
+        }
+      };
+      xhr.onerror = function () {
+        if (logger) logger('fetchSearchIndex', 'network error');
+        finish([]);
+      };
+      try {
+        xhr.open('GET', url, true);
+        xhr.send();
+      } catch (e) {
+        if (logger) logger('fetchSearchIndex', 'send error', e.message);
+        finish([]);
+      }
+    };
+  }
+
+  function fuzzyMatchScore(item, words) {
+    var title = (item.title || '').toLowerCase();
+    var tags = (item.tags || []).join(' ').toLowerCase();
+    var summary = (item.summary || '').toLowerCase();
+    var combined = title + ' ' + tags + ' ' + summary;
+    var score = 0;
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (!w) continue;
+      var idx = combined.indexOf(w);
+      if (idx === -1) return -1;
+      if (idx < title.length) score += SCORE_TITLE;
+      else if (idx < title.length + tags.length) score += SCORE_TAG;
+      else score += SCORE_SUMMARY;
+    }
+    return score;
+  }
+
+  function renderSearchResults(containerEl, list, escapeFn) {
+    if (!containerEl) return;
+    if (!list || list.length === 0) {
+      containerEl.setAttribute('data-state', 'empty');
+      containerEl.innerHTML = '<p class="search-overlay-status">无匹配结果</p>';
+      return;
+    }
+    containerEl.setAttribute('data-state', 'results');
+    var html = '<ul class="search-overlay-list">';
+    for (var j = 0; j < list.length; j++) {
+      var p = list[j].item;
+      var titleEsc = escapeFn(p.title || '');
+      var summary = p.summary || '';
+      var summaryEsc = escapeFn(summary.slice(0, SEARCH_SUMMARY_MAX_LEN));
+      if (summary.length > SEARCH_SUMMARY_MAX_LEN) summaryEsc += '…';
+      var linkEsc = escapeFn(p.link || '#');
+      html += '<li class="search-overlay-item" data-index="' + j + '"><a href="' + linkEsc + '" class="search-overlay-link">';
+      html += '<span class="search-overlay-item-title">' + titleEsc + '</span>';
+      if (summaryEsc) html += '<span class="search-overlay-item-summary">' + summaryEsc + '</span>';
+      html += '</a></li>';
+    }
+    html += '</ul>';
+    containerEl.innerHTML = html;
+  }
+
+  var overlayEl = null;
+  var overlayInput = null;
+  var overlayInputWrap = null;
+  var resultsEl = null;
+  var closeButtons = null;
+  var searchPanel = null;
+  var headerSearchInput = null;
+  var indexUrlGetter = null;
+  var fetchSearchIndex = null;
+  var searchDebounceTimer = null;
+  var searchHighlightedIndex = -1;
+
+  function clearSearchDebounce() {
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
+  }
+
+  function getSearchResultItems() {
+    return resultsEl ? resultsEl.querySelectorAll('.search-overlay-item') : [];
+  }
+
+  function setSearchHighlight(index) {
+    var items = getSearchResultItems();
+    var count = items.length;
+    if (count === 0) { searchHighlightedIndex = -1; return; }
+    var idx = index < 0 ? 0 : (index >= count ? count - 1 : index);
+    if (overlayEl) overlayEl.setAttribute('data-input-mode', 'keyboard');
+    for (var i = 0; i < count; i++) items[i].classList.toggle('is-highlighted', i === idx);
+    items[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    searchHighlightedIndex = idx;
+  }
+
+  function setMouseHighlight(itemEl) {
+    if (!overlayEl || !resultsEl) return;
+    overlayEl.setAttribute('data-input-mode', 'mouse');
+    var items = getSearchResultItems();
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle('is-hovered', items[i] === itemEl);
+    }
+  }
+
+  function clearMouseHighlight() {
+    if (!resultsEl) return;
+    var items = getSearchResultItems();
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('is-hovered');
+  }
+
+  function syncSearchPlaceholder() {
+    if (overlayInputWrap && overlayInput) {
+      overlayInputWrap.classList.toggle('has-value', overlayInput.value.trim().length > 0);
+    }
+  }
+
+  function openSearch() {
+    if (!overlayEl) return;
+    overlayEl.classList.add('is-open');
+    overlayEl.setAttribute('aria-hidden', 'false');
+    overlayEl.setAttribute('data-input-mode', 'keyboard');
+    if (document.body) document.body.classList.add('search-overlay-open');
+    if (overlayInput) {
+      overlayInput.value = '';
+      defer(function () {
+        try { overlayInput.focus(); } catch (e) { /* ignore */ }
+      }, SEARCH_FOCUS_DELAY_MS);
+    }
+    if (resultsEl) {
+      resultsEl.innerHTML = '';
+      resultsEl.setAttribute('data-state', 'idle');
+    }
+    searchHighlightedIndex = -1;
+  }
+
+  function closeSearch() {
+    if (!overlayEl) return;
+    overlayEl.classList.remove('is-open');
+    overlayEl.setAttribute('aria-hidden', 'true');
+    if (document.body) document.body.classList.remove('search-overlay-open');
+    clearSearchDebounce();
+    if (headerSearchInput) {
+      try { headerSearchInput.blur(); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function runSearch() {
+    var q = overlayInput ? overlayInput.value.trim() : '';
+    if (!resultsEl) return;
+    if (!q) {
+      resultsEl.innerHTML = '';
+      resultsEl.setAttribute('data-state', 'idle');
+      return;
+    }
+    resultsEl.setAttribute('data-state', 'loading');
+    resultsEl.innerHTML = '<p class="search-overlay-status">搜索中…</p>';
+    fetchSearchIndex(function (posts) {
+      if (!resultsEl) return;
+      var normalized = [];
+      for (var i = 0; i < posts.length; i++) {
+        var p = normalizePostItem(posts[i]);
+        if (p) normalized.push(p);
+      }
+      var words = q.toLowerCase().split(/\s+/).filter(function (w) { return w.length > 0; });
+      var list = [];
+      for (var k = 0; k < normalized.length; k++) {
+        var score = fuzzyMatchScore(normalized[k], words);
+        if (score >= 0) list.push({ item: normalized[k], score: score });
+      }
+      list.sort(function (a, b) { return b.score - a.score; });
+      renderSearchResults(resultsEl, list, escapeHtml);
+      setSearchHighlight(list.length > 0 ? 0 : -1);
+    });
+  }
+
+  function onSearchInput() {
+    syncSearchPlaceholder();
+    clearSearchDebounce();
+    searchDebounceTimer = setTimeout(runSearch, SEARCH_DEBOUNCE_MS);
+  }
+
+  function handleSearchNavigationKey(e) {
+    var items = getSearchResultItems();
+    var count = items.length;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (count > 0) setSearchHighlight(searchHighlightedIndex < 0 ? 0 : searchHighlightedIndex + 1);
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (count > 0) setSearchHighlight(searchHighlightedIndex <= 0 ? count - 1 : searchHighlightedIndex - 1);
+      return true;
+    }
+    if (e.key === 'Enter') {
+      if (count > 0 && searchHighlightedIndex >= 0) {
+        var link = items[searchHighlightedIndex].querySelector('.search-overlay-link');
+        if (link && link.href) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSearch();
+          window.location.href = link.href;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function onSearchKeydown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+      return;
+    }
+    if (handleSearchNavigationKey(e)) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearSearchDebounce();
+      runSearch();
+    }
+  }
+
+  function init(el, options) {
+    options = options || {};
+    overlayEl = el;
+    if (!el) {
+      log('init', 'no overlay element');
+      return;
+    }
+    overlayInput = el.querySelector('.search-overlay-input');
+    overlayInputWrap = el.querySelector('.search-overlay-input-wrap');
+    resultsEl = el.querySelector('#search-overlay-results') || el.querySelector('.search-overlay-results');
+    closeButtons = el.querySelectorAll('[data-close="search"]');
+    searchPanel = el.querySelector('.search-overlay-panel');
+    headerSearchInput = options.headerSearchInput || null;
+
+    indexUrlGetter = (function () {
+      var url = '';
+      return function getUrl() {
+        if (url) return url;
+        var domain = overlayEl.getAttribute('data-domain') || '';
+        url = getSearchIndexUrl(domain);
+        return url;
+      };
+    })();
+    fetchSearchIndex = createSearchIndexFetcher(indexUrlGetter, log);
+
+    if (overlayInput) {
+      overlayInput.addEventListener('input', onSearchInput);
+      overlayInput.addEventListener('keydown', onSearchKeydown);
+    }
+    if (searchPanel) {
+      searchPanel.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          closeSearch();
+          e.preventDefault();
+          return;
+        }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+          if (handleSearchNavigationKey(e)) e.preventDefault();
+        }
+      });
+    }
+    if (resultsEl) {
+      resultsEl.addEventListener('mouseover', function (e) {
+        var item = e.target && e.target.closest ? e.target.closest('.search-overlay-item') : null;
+        if (!item || !resultsEl.contains(item)) return;
+        setMouseHighlight(item);
+      });
+      resultsEl.addEventListener('mouseleave', function () {
+        clearMouseHighlight();
+      });
+    }
+    [].forEach.call(closeButtons || [], function (btn) {
+      if (btn && btn.addEventListener) btn.addEventListener('click', closeSearch);
+    });
+    log('init', 'overlay bound');
+  }
+
+  window.SearchManager = {
+    init: init,
+    openSearch: openSearch,
+    closeSearch: closeSearch
+  };
+})();
+
+</script>
+<script type="application/javascript">
+'use strict';
+(function () {
+  var doc = document;
+  var log = function () {
+    try {
+      if (typeof console !== 'undefined' && console.log) {
+        console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments)));
+      }
+    } catch (e) { /* noop */ }
+  };
+
+  function onReady() {
+    var cb = doc.getElementById('sidebar-toggle-cb');
+    var labels = doc.querySelectorAll('label[for="sidebar-toggle-cb"]');
+    log('DOM check', 'checkbox=', !!cb, 'labels=', labels ? labels.length : 0);
+
+    // 侧栏：同步 body 类名（兼容不支持 :has() 的浏览器）
+    function syncSidebar() {
+      if (cb && doc.body) doc.body.classList.toggle('sidebar-opened', cb.checked);
+    }
+    if (cb) cb.addEventListener('change', syncSidebar);
+    [].forEach.call(labels || [], function (el) {
+      if (el && el.addEventListener) el.addEventListener('click', syncSidebar);
+    });
+    syncSidebar();
+
+    var searchOverlay = doc.getElementById('search-overlay');
+    var headerSearchInput = doc.querySelector('.header-search-input');
+    var headerSearchIcon = doc.querySelector('.header-search-icon');
+
+    if (typeof window.SearchManager !== 'undefined' && searchOverlay) {
+      window.SearchManager.init(searchOverlay, { headerSearchInput: headerSearchInput || undefined });
+      function onOpenSearch(e) {
+        e.preventDefault();
+        window.SearchManager.openSearch();
+      }
+      if (headerSearchInput) headerSearchInput.addEventListener('click', onOpenSearch);
+      if (headerSearchIcon) headerSearchIcon.addEventListener('click', onOpenSearch);
+      doc.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+          e.preventDefault();
+          window.SearchManager.openSearch();
+        }
+      }, true);
+    }
+  }
+
+  if (doc.readyState === 'loading') {
+    doc.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
+  }
+})();
+</script>
+
+
+    <main class="site-main">
+        <div class="site-content">
+            <article class="post tag-getting-started">
+                <header class="cover post-header">
+                    <div class="cover-bg" >
+
+                        
+                            <img srcset="https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 300w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 600w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 800w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 1600w, https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png 2000w"
+                                 sizes="100vw" src="https://da1v4d.github.io/post-images/di-san-fang-api-dui-jie-gui-fan.png" alt="如何高效第三方API-技术分享"/>
+                        
+
+                    </div>
+                    <div class="cover-content">
+                        <div class="inner">
+                            <div class="post-tags">
+                                
+                                    
+                                        <a href="https://da1v4d.github.io/tag/HaLb7n1iTe/">技术分享&nbsp;&nbsp;</a>
+                                    
+                                        <a href="https://da1v4d.github.io/tag/-MHu0nqeXU/">springboot&nbsp;&nbsp;</a>
+                                    
+                                        <a href="https://da1v4d.github.io/tag/XzEHCMPN89/">java&nbsp;&nbsp;</a>
+                                    
+                                
+                            </div>
+                            <h1 class="post-title">如何高效第三方API-技术分享</h1>
+                            <div class="post-meta">
+                                <span class="post-meta-wrap">
+                                    <img class="author-avatar"
+                                         srcset="https://da1v4d.github.io/media/images/avatar.png, https://da1v4d.github.io/media/images/avatar.png 2x"
+                                         src="https://da1v4d.github.io/media/images/avatar.png" alt=""/>
+                                    <span class="post-author">2401字</span>
+                                    <time class="published" datetime="2026-03-05">2026-03-05</time>
+                                </span>
+                                <div>10 min read</div>
+                            </div>
+                            <a href="#post-content" class="arrow-down" data-scroll><span class="screen-reader-text">Scroll Down</span></a>
+                        </div>
+                    </div>
+                </header>
+                <div class="post-body-wrap">
+                    <nav id="post-toc" class="post-toc" aria-label="文章目录"></nav>
+                    <div id="post-body-inner" class="inner">
+                        <div id="post-content" class="post-content">
+                            <h2 id="1-模块介绍">1. 模块介绍</h2>
+<p>本模块用于<strong>对接第三方 API</strong>，将各第三方服务封装为独立的 Maven 子模块，通过 <strong>Feign</strong> 声明式 HTTP 客户端统一调用，配置与鉴权与业务解耦，便于按需引入与维护。</p>
+<!-- more -->
+<p>当前包含子模块：</p>
+<table>
+<thead>
+<tr>
+<th>子模块</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xxx-external-meeting</code></td>
+<td>某会议平台 API（创建/取消/结束会议、查询会议详情等）</td>
+</tr>
+<tr>
+<td><code>xxx-external-im</code></td>
+<td>某企业通讯回调（事件接收、消息加解密等）</td>
+</tr>
+<tr>
+<td><code>xxx-external-rpa</code></td>
+<td>某 RPA 调度 API（鉴权、任务启动/重试等）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="2-第三方-api-对接要点总结">2. 第三方 API 对接要点总结</h2>
+<h3 id="21-鉴权与安全">2.1 鉴权与安全</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+<th>本模块实践</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>凭证隔离</strong></td>
+<td>密钥、AppId、Token 等不写死在代码中，统一通过 <code>ConfigurationProperties</code> 从配置文件读取。</td>
+<td>各子模块提供 <code>xxxProperties</code>，配置前缀如 <code>external.rpa</code>、<code>external.meeting</code>。</td>
+</tr>
+<tr>
+<td><strong>Token 复用与缓存</strong></td>
+<td>若第三方为 Token 鉴权且有时效，应缓存并在过期前刷新，避免每次请求都拉新 Token。</td>
+<td>某 RPA 平台模块通过 Token 服务 + Redis 缓存 <code>accessToken</code>，过期时间按 <code>expiresIn - 60</code> 秒设置，减少鉴权调用。</td>
+</tr>
+<tr>
+<td><strong>请求头/签名</strong></td>
+<td>很多开放平台要求固定请求头（AppId、SdkId、时间戳、随机数）或对 Body/URI 做签名。</td>
+<td>某会议平台模块在 Feign 拦截器中统一注入公共头并计算签名，业务 Feign 接口只关心路径与参数。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-接口契约与模型">2.2 接口契约与模型</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+<th>本模块实践</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>请求/响应 DTO 与文档一致</strong></td>
+<td>请求体、响应体与官方文档字段命名、类型一致，便于对接与排查。</td>
+<td>各模块均设 <code>req</code>、<code>resp</code> 包，注释中标注对应文档接口路径。</td>
+</tr>
+<tr>
+<td><strong>统一响应包装</strong></td>
+<td>第三方通常有统一响应结构（code、success、msg、data），建议封装为泛型响应类。</td>
+<td>如泛型响应类含 <code>AuthData</code> 等，业务只解析 <code>data</code>。</td>
+</tr>
+<tr>
+<td><strong>错误语义不丢失</strong></td>
+<td>接口失败时应抛出明确异常或通过 ErrorDecoder 转成业务可识别的异常。</td>
+<td>某会议平台通过 Feign 的 ErrorDecoder 将响应转为业务异常。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-配置与启用方式">2.3 配置与启用方式</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+<th>本模块实践</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>按需启用</strong></td>
+<td>未使用的第三方不应加载其 Bean 与 Feign 客户端，避免多余依赖与配置。</td>
+<td>某会议模块使用 <code>@ConditionalOnProperty</code> 控制配置类生效；引入对应 starter/模块即启用。</td>
+</tr>
+<tr>
+<td><strong>自动装配</strong></td>
+<td>子模块通过 <code>META-INF/spring.factories</code> 或 <code>@EnableFeignClients(basePackages = &quot;...&quot;)</code> 暴露配置与 Feign 扫描。</td>
+<td>各子模块提供 <code>XxxAutoConfiguration</code>，集中 <code>@EnableFeignClients</code>、<code>@EnableConfigurationProperties</code>。</td>
+</tr>
+<tr>
+<td><strong>URL 与环境</strong></td>
+<td>基地址（如 <code>url</code>）可配置化，便于测试/预发/生产切换；若固定则写死在 <code>@FeignClient(url=...)</code> 亦可。</td>
+<td>当前多为固定基地址（已脱敏），后续可改为 <code>@FeignClient(url = &quot;${external.xxx.baseUrl}&quot;)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="24-可维护性">2.4 可维护性</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>接口与实现分离</strong></td>
+<td>Feign 接口只做声明；鉴权、签名、重试、日志在 Interceptor / ErrorDecoder 中统一处理。</td>
+</tr>
+<tr>
+<td><strong>日志与排查</strong></td>
+<td>在 Interceptor 中可打印请求方法、URL、头、体（注意脱敏），便于线上排查。</td>
+</tr>
+<tr>
+<td><strong>版本与兼容</strong></td>
+<td>第三方 API 升级时，仅需调整对应子模块的 DTO 与路径，不影响其他第三方。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="3-feign-在-api-对接中的优势">3. Feign 在 API 对接中的优势</h2>
+<table>
+<thead>
+<tr>
+<th>优势</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>声明式、契约清晰</strong></td>
+<td>用接口 + 注解描述 HTTP 方法、路径、参数、请求体，读代码即知调用契约，无需手写 <code>RestTemplate</code>/<code>HttpClient</code> 拼 URL 和 Body。</td>
+</tr>
+<tr>
+<td><strong>与 Spring 集成好</strong></td>
+<td><code>@FeignClient</code> 生成的实现可被直接注入，配合 <code>@EnableFeignClients</code> 包扫描即可；与配置类、拦截器、编解码器无缝配合。</td>
+</tr>
+<tr>
+<td><strong>统一拦截与扩展</strong></td>
+<td>通过 <code>RequestInterceptor</code> 统一注入鉴权头、签名、日志；通过 <code>ErrorDecoder</code> 统一将 HTTP 错误转为业务异常；不同第三方可绑定不同 configuration。</td>
+</tr>
+<tr>
+<td><strong>可插拔的编码/解码</strong></td>
+<td>支持 Jackson、Gson 等，可自定义 <code>Encoder</code>/<code>Decoder</code> 适配第三方特殊格式（如 XML、自定义 JSON 字段名）。</td>
+</tr>
+<tr>
+<td><strong>与负载均衡、服务发现结合</strong></td>
+<td>若对接内部服务，可配合 <code>name</code> + 服务发现，不写死 URL；对外部 API 则用固定 <code>url</code>，本模块采用后者。</td>
+</tr>
+<tr>
+<td><strong>测试友好</strong></td>
+<td>可对 Feign 接口做 <code>@MockBean</code> 或定义 <code>@Primary</code> 的 fallback/测试实现，方便单测与集成测试。</td>
+</tr>
+</tbody>
+</table>
+<p>本模块中：<strong>鉴权与签名</strong> 均通过 Feign 的 <code>RequestInterceptor</code> 注入，<strong>业务代码只调用接口方法</strong>，符合“对接逻辑集中、业务代码简洁”的设计。</p>
+<hr>
+<h2 id="4-每个第三方-api-作为独立-maven-模块的优势">4. 每个第三方 API 作为独立 Maven 模块的优势</h2>
+<table>
+<thead>
+<tr>
+<th>优势</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>依赖隔离</strong></td>
+<td>各第三方 SDK/依赖（如某会议 SDK、加解密库）仅在该子模块内引入，主工程或其他业务按需依赖对应 artifact，避免依赖冲突与“全家桶”引用。</td>
+</tr>
+<tr>
+<td><strong>按需引入</strong></td>
+<td>只接入会议时只依赖会议子模块 artifact，不引入企业通讯、RPA 等无关代码与配置，减小包体积与启动扫描范围。</td>
+</tr>
+<tr>
+<td><strong>职责单一、边界清晰</strong></td>
+<td>一个模块只负责一家第三方：其 Feign 接口、DTO、鉴权、签名、错误码处理都收敛在同一 artifact 内，符合单一职责与高内聚。</td>
+</tr>
+<tr>
+<td><strong>独立演进与版本</strong></td>
+<td>某第三方 API 升级或 Breaking 变更时，只需升级对应子模块版本并修改该模块内部实现，其它子模块与主应用可不受影响。</td>
+</tr>
+<tr>
+<td><strong>父 POM 统一管理版本</strong></td>
+<td>父模块在 <code>dependencyManagement</code> 中统一维护各子模块版本，主应用只关心父 BOM 或父版本。</td>
+</tr>
+<tr>
+<td><strong>配置命名空间清晰</strong></td>
+<td>配置前缀按模块划分（如 <code>external.meeting</code>、<code>external.rpa</code>），避免 key 冲突，也便于文档与运维按模块说明。</td>
+</tr>
+<tr>
+<td><strong>测试与 Mock 边界明确</strong></td>
+<td>单测或集成测试时可只引入需要的那一个 external 模块并 Mock，其它第三方完全隔离。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="5-模块结构概览脱敏">5. 模块结构概览（脱敏）</h2>
+<p>以下为说明用结构，<strong>所有 URL、密钥、ID 均已脱敏</strong>，实际配置以各环境为准。</p>
+<h3 id="51-父模块与依赖管理">5.1 父模块与依赖管理</h3>
+<pre><code class="language-xml">&lt;!-- 父模块 artifactId 已脱敏 --&gt;
+&lt;modules&gt;
+    &lt;module&gt;meeting&lt;/module&gt;
+    &lt;module&gt;im&lt;/module&gt;
+    &lt;module&gt;rpa&lt;/module&gt;
+&lt;/modules&gt;
+&lt;dependencyManagement&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.example&lt;/groupId&gt;
+        &lt;artifactId&gt;xxx-external-meeting&lt;/artifactId&gt;
+        &lt;version&gt;${external-meeting.version}&lt;/version&gt;
+    &lt;/dependency&gt;
+    &lt;!-- 其他子模块同理 --&gt;
+&lt;/dependencyManagement&gt;
+</code></pre>
+<h3 id="52-配置项示例脱敏">5.2 配置项示例（脱敏）</h3>
+<p><strong>某 RPA 平台</strong></p>
+<pre><code class="language-yaml">external:
+  rpa:
+    access-key-id: &quot;***&quot;      # 由企业管理员创建，此处脱敏
+    access-key-secret: &quot;***&quot;  # 由企业管理员创建，此处脱敏
+</code></pre>
+<p><strong>某会议平台</strong></p>
+<pre><code class="language-yaml">external:
+  meeting:
+    app-id: &quot;***&quot;     # 企业 ID，脱敏
+    sdk-id: &quot;***&quot;     # 应用 SdkId，脱敏
+    secret-id: &quot;***&quot;  # 应用 SecretId，脱敏
+    secret-key: &quot;***&quot; # 应用密钥，脱敏
+</code></pre>
+<p><strong>某企业通讯平台回调</strong></p>
+<pre><code class="language-yaml">external:
+  im:
+    callback:
+      token: &quot;***&quot;  # 回调校验 Token，脱敏
+      aes: &quot;***&quot;    # 消息加解密密钥，脱敏
+      corp-id: &quot;***&quot; # 企业 ID，脱敏
+</code></pre>
+<h3 id="53-feign-客户端与基地址脱敏">5.3 Feign 客户端与基地址（脱敏）</h3>
+<table>
+<thead>
+<tr>
+<th>子模块</th>
+<th>Feign 客户端名</th>
+<th>基地址（脱敏）</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>某 RPA 平台</td>
+<td><code>xxx-rpa-auth-client</code></td>
+<td><code>https://api.example.com/oapi/</code></td>
+<td>鉴权：GET token/create</td>
+</tr>
+<tr>
+<td>某 RPA 平台</td>
+<td><code>xxx-rpa-client</code></td>
+<td><code>https://api.example.com/oapi/</code></td>
+<td>业务：POST dispatch/v2/job/start、retry</td>
+</tr>
+<tr>
+<td>某会议平台</td>
+<td><code>xxx-meeting-client</code></td>
+<td><code>https://api.meeting.example.com</code></td>
+<td>会议：/v1/meetings 等</td>
+</tr>
+</tbody>
+</table>
+<p>上述 URL 仅为示例，实际以各第三方官方文档为准；生产环境建议通过配置中心或环境变量注入，避免硬编码。</p>
+<h3 id="54-鉴权与拦截流程逻辑说明">5.4 鉴权与拦截流程（逻辑说明）</h3>
+<ul>
+<li><strong>某 RPA 平台</strong>：
+<ul>
+<li>鉴权 Feign 使用 <code>accessKeyId</code> + <code>accessKeySecret</code> 请求 token 接口。</li>
+<li>业务 Feign 通过拦截器从 Token 服务取缓存的 <code>accessToken</code>，请求头注入 <code>Authorization: Bearer &lt;token&gt;</code>。</li>
+<li>Token 缓存在 Redis，key 可配置（如 <code>xxx:auth:token</code>），过期时间 = 接口返回 <code>expiresIn - 60</code> 秒。</li>
+</ul>
+</li>
+<li><strong>某会议平台</strong>：
+<ul>
+<li>无独立 Token 接口，每次请求在 Feign 拦截器中注入 AppId、SdkId、Key、Timestamp、Nonce，并按官方规则计算签名。</li>
+</ul>
+</li>
+<li><strong>某企业通讯平台</strong>：
+<ul>
+<li>以服务端回调为主（接收事件、解密），配置 token/aes/corpId 用于校验与解密，不涉及 Feign 出站鉴权示例（仅说明配置用途）。</li>
+</ul>
+</li>
+</ul>
+<h3 id="55-请求响应示例脱敏">5.5 请求/响应示例（脱敏）</h3>
+<p><strong>某 RPA 平台鉴权响应（结构示例）</strong></p>
+<pre><code class="language-json">{
+  &quot;code&quot;: 200,
+  &quot;success&quot;: true,
+  &quot;msg&quot;: &quot;ok&quot;,
+  &quot;data&quot;: {
+    &quot;accessToken&quot;: &quot;***&quot;,
+    &quot;expiresIn&quot;: 7199
+  }
+}
+</code></pre>
+<p><strong>某会议取消请求（结构示例）</strong></p>
+<pre><code class="language-json">POST /v1/meetings/{meetingId}/cancel
+{
+  &quot;userid&quot;: &quot;***&quot;,
+  &quot;instanceid&quot;: 1,
+  &quot;reason_code&quot;: 1,
+  &quot;reason_detail&quot;: &quot;取消会议&quot;
+}
+</code></pre>
+<p>以上字段名与结构与实际对接一致，具体取值均已脱敏。</p>
+<hr>
+<h2 id="6-使用方式简述">6. 使用方式简述</h2>
+<ol>
+<li><strong>引入依赖</strong>：在需要对接某第三方的应用中引入对应子模块，例如：</li>
+</ol>
+<pre><code class="language-xml"> &lt;dependency&gt;
+     &lt;groupId&gt;com.example&lt;/groupId&gt;
+     &lt;artifactId&gt;xxx-external-rpa&lt;/artifactId&gt;
+ &lt;/dependency&gt;
+</code></pre>
+<ol start="2">
+<li><strong>配置</strong>：在 <code>application.yml</code> 中配置对应前缀下的密钥/ID（见 5.2，务必使用配置中心或环境变量，不要提交明文）。</li>
+<li><strong>注入使用</strong>：注入对应 Feign 接口或封装好的 Service，直接调用接口方法即可；鉴权与签名由各模块自动完成。</li>
+</ol>
+<hr>
+<h2 id="7-注意事项">7. 注意事项</h2>
+<ul>
+<li><strong>安全</strong>：所有密钥、Token、企业 ID 等均需脱敏存储与传输；文档中的 groupId、artifactId、第三方 API 名称（如某会议平台、某 RPA 平台、某企业通讯平台）及配置前缀均为脱敏示例，实际值不得写入对外文档或代码仓库。</li>
+<li><strong>兼容性</strong>：第三方 API 版本变更时请优先在对应子模块内完成适配，并更新该模块的 README 或接口注释。</li>
+<li><strong>日志</strong>：Interceptor 中若打印请求体或响应体，须做脱敏与长度截断，避免敏感信息进入日志。</li>
+</ul>
+<p> </p>
+
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <section class="comments-area">
+    <div class="inner">
+        <h2 class="screen-reader-text">评论</h2>
+        
+    </div>
+</section>
+
+
+            
+                <nav class="post-navigation">
+                    <h2 class="screen-reader-text">Post navigation</h2>
+                    <div class="nav-links">
+                        <a href="https://da1v4d.github.io/post/bi-jiao-mo-kuai-compare/" class="nav-previous">
+                            <div class="nav-bg" >
+                                
+                                    <img srcset="https://da1v4d.github.io/post-images/bi-jiao-mo-kuai-compare.png 300w, https://da1v4d.github.io/post-images/bi-jiao-mo-kuai-compare.png 600w, https://da1v4d.github.io/post-images/bi-jiao-mo-kuai-compare.png 800w, https://da1v4d.github.io/post-images/bi-jiao-mo-kuai-compare.png 1600w, https://da1v4d.github.io/post-images/bi-jiao-mo-kuai-compare.png 2000w" sizes="(max-width: 800px) 100vw, 50vw" src="https://da1v4d.github.io/post-images/bi-jiao-mo-kuai-compare.png" alt="图裂了"/>
+                                
+                            </div>
+                            <div class="nav-inside">
+                                <span class="nav-before">下一篇</span>
+                                <span class="nav-title">比较模块（Compare）-技术分享</span>
+                                <span class="nav-date">2026-03-05</span>
+                            </div>
+                        </a>
+                    </div>
+                </nav>
+            
+
+        </div>
+    </main>
+
+    <footer class="site-footer">
+    <div class="inner">
+        <!-- 社交 -->
+        <div class="offsite-links">
+            
+                
+                    <a href="https://github.com/Da1V4d" class="circle" target="_blank" rel="noopener">
+                        <i class="fab fa-github"></i>
+                    </a>
+                
+            
+                
+            
+                
+            
+                
+            
+                
+            
+        </div>
+
+        <div class="site-info">
+            THEME BY <a href="https://github.com/GalaxySuze/gridea-theme-subtle-galaxy">Subtle Galaxy</a>, REFERENCE FROM <a href="https://subtle.justgoodthemes.com/">Subtle</a><br/>
+            Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+        </div>
+        <a href="#page" class="arrow-up" data-scroll><span class="screen-reader-text">Back to the top</span></a>
+    </div>
+</footer>
+
+
+</div>
+
+<a href="#page" class="back-to-top-btn circle" data-scroll aria-label="返回顶部" title="返回顶部">
+  <span class="back-to-top-arrow" aria-hidden="true"></span>
+</a>
+
+<!-- 参考 paper 主题：在不支持 :has() 的浏览器中，将 checkbox 状态同步到 body；[Galaxy Nav] 日志便于 GitHub Pages 排查 -->
+<script type="application/javascript">
+(function() {
+  var log = function() { try { console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {} };
+  function syncSidebar() {
+    var cb = document.getElementById('sidebar-toggle-cb');
+    log('syncSidebar', 'cb=', !!cb, 'body=', !!document.body, 'checked=', cb ? cb.checked : 'n/a');
+    if (cb && document.body) {
+      document.body.classList.toggle('sidebar-opened', cb.checked);
+      log('syncSidebar done', 'body.className=', document.body.className);
+    } else {
+      log('syncSidebar skip', 'missing cb or body');
+    }
+  }
+  function init() {
+    var cb = document.getElementById('sidebar-toggle-cb');
+    var labels = document.querySelectorAll('label[for="sidebar-toggle-cb"]');
+    var hasSupport = false;
+    try { hasSupport = document.documentElement.matches('body:has(a)'); } catch (e) {}
+    log('init', 'checkbox=', !!cb, 'labels=', labels.length, 'location=', location.href, 'CSS :has()=', hasSupport);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncSidebar);
+    else syncSidebar();
+  }
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'sidebar-toggle-cb') {
+      log('checkbox change', 'checked=', e.target.checked);
+      syncSidebar();
+    }
+  });
+  init();
+})();
+</script>
+<!-- 从 domain 解析 base 路径加载本地脚本；[Galaxy Nav] 日志便于 GitHub Pages 排查 -->
+<script type="application/javascript">
+(function() {
+    var log = function() { try { console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {} };
+    var domain = 'https://da1v4d.github.io';
+    var a = document.createElement('a');
+    a.href = domain;
+    var base = (a.pathname || '/').replace(/\/$/, '') + '/';
+    log('scripts', 'domain=', domain, 'base=', base, 'pathname=', a.pathname);
+    function loadScript(src, next) {
+        var s = document.createElement('script');
+        s.src = base + src;
+        log('loadScript', src, 'url=', s.src);
+        if (next) {
+            s.onload = function() { log('loaded', src); next(); };
+            s.onerror = function() { log('FAILED to load', src, 'url=', s.src); next(); };
+        } else {
+            s.onerror = function() { log('FAILED to load', src, 'url=', s.src); };
+        }
+        document.body.appendChild(s);
+    }
+    loadScript('media/scripts/_core/plugins.js', function() {
+        loadScript('media/scripts/_core/custom.js', function() {
+            if (typeof hljs !== 'undefined') hljs.initHighlightingOnLoad();
+        });
+    });
+})();
+</script>
+
+<!-- highlight -->
+<script src="https://cdn.bootcss.com/highlight.js/9.15.8/highlight.min.js"></script>
+
+<script type="application/javascript">
+    // 代码高亮（若上面异步未完成则此处兜底）
+    if (typeof hljs !== 'undefined') hljs.initHighlightingOnLoad();
+</script>
+
+
+
+
+<script type="application/javascript">
+(function() {
+  function slugify(text) {
+    return text.replace(/\s+/g, '-').replace(/[^\w\u4e00-\u9fff\-]/g, '').toLowerCase() || 'heading';
+  }
+  function buildTOC() {
+    var toc = document.getElementById('post-toc');
+    var content = document.getElementById('post-content');
+    if (!toc || !content) return;
+    var headings = content.querySelectorAll('h2, h3, h4');
+    if (headings.length === 0) return;
+    var list = document.createElement('ul');
+    list.className = 'post-toc-list';
+    var count = {};
+    headings.forEach(function(h) {
+      var base = slugify(h.textContent);
+      if (!h.id) {
+        count[base] = (count[base] || 0) + 1;
+        h.id = count[base] > 1 ? base + '-' + count[base] : base;
+      }
+      var id = h.id;
+      var li = document.createElement('li');
+      li.className = 'post-toc-item post-toc-' + h.tagName.toLowerCase();
+      var a = document.createElement('a');
+      a.href = '#' + id;
+      a.textContent = h.textContent;
+      a.setAttribute('data-scroll', '');
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+    var title = document.createElement('div');
+    title.className = 'post-toc-title';
+    title.textContent = '目录';
+    toc.appendChild(title);
+    toc.appendChild(list);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildTOC);
+  else buildTOC();
+})();
+</script>
+
+
+</body>
+</html>

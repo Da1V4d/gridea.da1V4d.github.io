@@ -1,0 +1,2003 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://da1v4d.github.io</id>
+    <title>Greal</title>
+    <updated>2026-03-09T08:39:58.375Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://da1v4d.github.io"/>
+    <link rel="self" href="https://da1v4d.github.io/atom.xml"/>
+    <subtitle>温故而知新</subtitle>
+    <logo>https://da1v4d.github.io/images/avatar.png</logo>
+    <icon>https://da1v4d.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2026, Greal</rights>
+    <entry>
+        <title type="html"><![CDATA[分布式锁模块（lock）技术分享]]></title>
+        <id>https://da1v4d.github.io/post/fen-bu-shi-suo-mo-kuai-lockji-zhu-fen-xiang/</id>
+        <link href="https://da1v4d.github.io/post/fen-bu-shi-suo-mo-kuai-lockji-zhu-fen-xiang/">
+        </link>
+        <updated>2026-03-06T01:29:24.000Z</updated>
+        <summary type="html"><![CDATA[<h3 id="11-业务背景">1.1 业务背景</h3>
+<p>在分布式、多实例部署下，同一份数据可能被多个节点同时修改，仅靠 JVM 内的 <code>synchronized</code> 或 <code>ReentrantLock</code> 无法跨进程互斥，会导致：</p>
+]]></summary>
+        <content type="html"><![CDATA[<h3 id="11-业务背景">1.1 业务背景</h3>
+<p>在分布式、多实例部署下，同一份数据可能被多个节点同时修改，仅靠 JVM 内的 <code>synchronized</code> 或 <code>ReentrantLock</code> 无法跨进程互斥，会导致：</p>
+<!--more-->
+<ul>
+<li><strong>重复扣减库存</strong>：多个请求同时读库存、同时扣减，造成超卖。</li>
+<li><strong>重复发放优惠券</strong>：同一用户多请求同时通过“是否已领”判断，导致重复发放。</li>
+<li><strong>并发更新覆盖</strong>：对同一订单/账户的并发更新互相覆盖，数据不一致。</li>
+</ul>
+<p>因此需要<strong>跨 JVM、跨实例的互斥能力</strong>，即分布式锁：在同一时刻，针对同一资源（由锁 key 标识）只允许一个持有者执行临界区逻辑。</p>
+<h3 id="12-模块目标">1.2 模块目标</h3>
+<p>本模块要解决的核心问题是：<strong>在分布式环境下，对“同一业务资源”提供统一的加锁/解锁能力，并支持多种锁语义（可重入、公平、读写分离），同时保证使用简单、释放可靠</strong>。</p>
+<p>具体包括：</p>
+<ul>
+<li><strong>声明式加锁</strong>：通过注解指定锁 key、锁类型、等待时间等，业务代码无侵入。</li>
+<li><strong>多种锁类型</strong>：可重入锁、公平锁、读锁、写锁，适配不同并发场景。</li>
+<li><strong>灵活的锁 key</strong>：支持 SpEL 从方法参数中解析 key，支持前缀与分隔符，避免 key 冲突。</li>
+<li><strong>获取超时策略</strong>：在指定时间内未拿到锁时，可走自定义处理逻辑（默认抛异常），避免无限等待。</li>
+<li><strong>释放可靠</strong>：AOP 在 <code>finally</code> 中统一解锁，避免业务异常导致锁泄漏。</li>
+</ul>
+<hr>
+<h2 id="2-为什么这样设计如何设计实现的关键细节">2. 为什么这样设计，如何设计实现的（关键细节）</h2>
+<h3 id="21-整体架构思路">2.1 整体架构思路</h3>
+<ul>
+<li><strong>注解驱动</strong>：用 <code>@ILock</code> 声明“此方法需要分布式锁”，key、类型、超时、超时处理器均在注解上配置。</li>
+<li><strong>锁类型与实现分离</strong>：<code>LockType</code> 枚举（Reentrant / Fair / Read / Write）对应四种 Redisson 锁实现，由 <code>LockManager</code> 统一按类型返回 <code>ILocker</code>，便于扩展新锁类型。</li>
+<li><strong>统一加锁入口</strong>：AOP 拦截带 <code>@ILock</code> 的方法 → 解析 key → 按类型取锁 → tryLock(waitTime) → 成功则 proceed 并在 finally 中 unlock，失败则走 <code>LockTimeoutHandler</code>。</li>
+</ul>
+<p>这样设计的原因：不同业务对“公平性”“读写分离”需求不同，用枚举 + 策略映射可以清晰扩展；key 用 SpEL 能从方法参数中抽业务主键，避免硬编码；超时后走 Handler 可自定义“抛异常 / 返回默认值 / 打日志”等，不写死在切面里。</p>
+<h3 id="22-核心流程aop-trylock-finally-释放">2.2 核心流程（AOP + tryLock + finally 释放）</h3>
+<pre><code>请求进入 → @ILock 切面
+         → 从注解取 keys、prefix、separator、lockType、timeout、timeUnit、timeOutHandler
+         → SpEL 解析 keys 得到 parseKeys，与 prefix 用 separator 拼成 lockName
+         → lockManager.getLock(lockType) 得到 ILocker
+         → lock.tryLock(lockName, timeUnit, waitTime)
+         → 若成功：try { return joinPoint.proceed(); } finally { lock.unlock(lockName); }
+         → 若失败：从容器取 timeOutHandler Bean，执行 handler(lockName)（默认抛 RuntimeException），不执行 proceed
+</code></pre>
+<p>要点：</p>
+<ul>
+<li><strong>切面顺序</strong>：<code>@Order(Ordered.HIGHEST_PRECEDENCE)</code>，保证加锁优先于其他切面。</li>
+<li><strong>只使用 tryLock(waitTime)</strong>：不传 leaseTime，锁由业务执行期间持有，在 finally 中显式 unlock，避免“执行时间不确定导致 leaseTime 设短了锁自动释放、设长了阻塞别人”的问题；未获取到锁则不走业务逻辑，由超时处理器决定是否抛异常。</li>
+<li><strong>key 拼接</strong>：<code>prefix</code>（可选）与 SpEL 解析出的 <code>keys</code> 用 <code>separator</code>（默认 <code>:</code>）拼接，例如 <code>prefix=order</code>、keys=<code>#orderId</code> → <code>order:123</code>，保证 key 唯一且可读。</li>
+</ul>
+<h3 id="23-锁类型与-abstractlock-抽象">2.3 锁类型与 AbstractLock 抽象</h3>
+<ul>
+<li><strong>ILocker 接口</strong>：定义 getLock、lock、tryLock、unlock 等，与具体实现解耦。</li>
+<li><strong>AbstractLock</strong>：实现 <code>ILocker</code>，并实现 <code>ApplicationContextAware</code> 在启动时从容器拿到 <code>RedissonClient</code>；核心是 <strong>fetchLockOfType(lockKey)</strong>：根据子类返回的 <code>supportType()</code> 调用 Redisson 不同 API：
+<ul>
+<li><strong>Reentrant</strong>：<code>redissonClient.getLock(lockKey)</code>，可重入锁。</li>
+<li><strong>Fair</strong>：<code>redissonClient.getFairLock(lockKey)</code>，按请求顺序获取。</li>
+<li><strong>Read</strong>：<code>redissonClient.getReadWriteLock(lockKey).readLock()</code>，共享读锁。</li>
+<li><strong>Write</strong>：<code>redissonClient.getReadWriteLock(lockKey).writeLock()</code>，独占写锁。</li>
+</ul>
+</li>
+<li><strong>四种具体实现</strong>：<code>RedissonReentrantLock</code>、<code>RedissonFairLock</code>、<code>RedissonReadLock</code>、<code>RedissonWriteLock</code> 仅需实现 <code>supportType()</code> 返回对应枚举，其余逻辑全部在 AbstractLock 中复用。</li>
+</ul>
+<p>这样做的优点：新增锁类型只需新增枚举值、新增一个 AbstractLock 子类并注册 Bean，在 <code>LockManager</code> 和 <code>fetchLockOfType</code> 中增加分支即可，符合开闭原则。</p>
+<h3 id="24-lockmanager-与-bean-注册">2.4 LockManager 与 Bean 注册</h3>
+<ul>
+<li><strong>LockManager</strong>：实现 <code>ApplicationContextAware</code>，在 <code>setApplicationContext</code> 中把 <code>LockType</code> 与对应实现类 Bean 放入 <code>lockMap</code>（Reentrant→RedissonReentrantLock 等），对外提供 <code>getLock(LockType)</code>。</li>
+<li><strong>LockAutoConfiguration</strong>：通过 <code>spring.factories</code> 自动装配；<code>@ConditionalOnProperty(prefix = &quot;framework.lock&quot;, name = &quot;enable&quot;, havingValue = &quot;true&quot;, matchIfMissing = true)</code> 控制是否启用；注册 LockManager、四种锁 Bean、ILockAspect；并 <code>@EnableConfigurationProperties(LockProperties.class)</code> 绑定 <code>framework.lock.enable</code>。</li>
+</ul>
+<h3 id="25-超时处理与-locktimeouthandler">2.5 超时处理与 LockTimeoutHandler</h3>
+<ul>
+<li><strong>注解属性</strong>：<code>timeOutHandler</code> 指定“获取锁超时”时的处理类，需为 Spring 容器中的 Bean，默认 <code>LockTimeoutHandler.DefaultLockTimeoutHandler</code>。</li>
+<li><strong>DefaultLockTimeoutHandler</strong>：<code>handler(lockName)</code> 中抛出 <code>RuntimeException(String.format(&quot;%s请求频繁&quot;, lockName))</code>，便于全局异常处理统一返回。</li>
+<li><strong>切面逻辑</strong>：tryLock 返回 false 时，从容器取 <code>iLock.timeOutHandler()</code> 对应 Bean，若不存在则抛 <code>ServiceException</code>；若存在则调用 <code>lockTimeOutHandler.handler(lockName)</code>，<strong>不再执行</strong> <code>joinPoint.proceed()</code>，因此默认行为是“拿不到锁就抛异常、不执行业务”。</li>
+</ul>
+<p>自定义 Handler 可实现“打日志、发告警、返回默认值”等，只需实现 <code>LockTimeoutHandler</code> 并注册为 Bean，在注解上指定 <code>timeOutHandler = YourHandler.class</code> 即可。</p>
+<h3 id="26-interruptedexception-处理">2.6 InterruptedException 处理</h3>
+<ul>
+<li><strong>AbstractLock.tryLock</strong>：内部调用 Redisson 的 <code>lock.tryLock(waitTime, unit)</code> 或 <code>tryLock(waitTime, leaseTime, unit)</code>，会抛出 <code>InterruptedException</code>；当前实现中 catch 后直接返回 <code>false</code>，相当于“等待被中断则视为获取失败”，由上层切面走超时处理器，避免把中断异常抛到业务层。</li>
+</ul>
+<hr>
+<h2 id="3-这样设计的优点">3. 这样设计的优点</h2>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>业务无侵入</strong></td>
+<td>方法上加 <code>@ILock</code> 即可，key、类型、超时、超时处理均声明在注解上，加锁/解锁逻辑集中在切面。</td>
+</tr>
+<tr>
+<td><strong>锁类型可扩展</strong></td>
+<td>LockType + 多种 AbstractLock 实现 + LockManager 映射，新增锁类型只需新实现类与配置，符合开闭原则。</td>
+</tr>
+<tr>
+<td><strong>key 灵活</strong></td>
+<td>keys 支持 SpEL 数组，可从方法参数拼出业务 key；prefix、separator 便于按业务/模块划分 key 空间，避免冲突。</td>
+</tr>
+<tr>
+<td><strong>超时行为可配置</strong></td>
+<td>使用 tryLock(waitTime)，避免无限等待；超时后走 LockTimeoutHandler，默认抛异常，也可自定义为打日志、返回默认值等。</td>
+</tr>
+<tr>
+<td><strong>释放可靠</strong></td>
+<td>仅在 tryLock 成功时执行 proceed，并在 finally 中 unlock(lockName)，避免业务异常导致锁未释放。</td>
+</tr>
+<tr>
+<td><strong>与 Redisson 一致</strong></td>
+<td>底层完全基于 Redisson 的 RLock（可重入/公平/读写锁），复用其看门狗、Redlock 等能力，与项目内 cache 等模块技术栈统一。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="4-使用方法介绍">4. 使用方法介绍</h2>
+<h3 id="41-依赖与配置">4.1 依赖与配置</h3>
+<ul>
+<li>引入模块依赖 <code>framework-biz-lock</code>（该模块依赖 <code>framework-cache</code>，需保证 Redisson/Redis 可用）。</li>
+<li>自动装配：引入后默认启用，可通过配置关闭：</li>
+</ul>
+<pre><code class="language-yaml">framework:
+  lock:
+    enable: true   # 是否启用分布式锁，默认 true
+</code></pre>
+<h3 id="42-注解方式推荐">4.2 注解方式（推荐）</h3>
+<p>在需要加锁的方法上使用 <code>@ILock</code>，指定 <strong>keys</strong>（SpEL 数组）、<strong>lockType</strong>、<strong>timeout</strong> 等。</p>
+<p><strong>可重入锁示例（如下单、扣库存）：</strong></p>
+<pre><code class="language-java">@Service
+public class OrderService {
+
+    @ILock(keys = {&quot;#orderId&quot;}, prefix = &quot;order:create&quot;, lockType = LockType.Reentrant, timeout = 10, timeUnit = TimeUnit.SECONDS)
+    public void createOrder(String orderId, Order order) {
+        // 同一 orderId 同一时刻只会有一个请求进入
+    }
+}
+</code></pre>
+<p><strong>写锁示例（互斥写）：</strong></p>
+<pre><code class="language-java">@ILock(keys = {&quot;#productId&quot;}, prefix = &quot;product:stock&quot;, lockType = LockType.Write, timeout = 5)
+public void updateStock(String productId, int quantity) {
+    // 更新库存，同一 productId 写互斥
+}
+</code></pre>
+<p><strong>读锁示例（多读单写）：</strong></p>
+<pre><code class="language-java">@ILock(keys = {&quot;#productId&quot;}, prefix = &quot;product:info&quot;, lockType = LockType.Read, timeout = 3)
+public Product getProductInfo(String productId) {
+    // 多线程可并发读，与写锁互斥
+}
+</code></pre>
+<p><strong>多 key 与自定义分隔符：</strong></p>
+<pre><code class="language-java">@ILock(keys = {&quot;#userId&quot;, &quot;#couponId&quot;}, prefix = &quot;coupon&quot;, separator = &quot;_&quot;, lockType = LockType.Reentrant, timeout = 5)
+public void receiveCoupon(Long userId, Long couponId) {
+    // lockName 示例: coupon_1001_2001
+}
+</code></pre>
+<h3 id="43-注解属性说明">4.3 注解属性说明</h3>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>类型</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>lockType</td>
+<td>LockType</td>
+<td>Reentrant</td>
+<td>锁类型：Reentrant / Fair / Read / Write</td>
+</tr>
+<tr>
+<td>prefix</td>
+<td>String</td>
+<td>&quot;&quot;</td>
+<td>锁 key 前缀，可选</td>
+</tr>
+<tr>
+<td>keys</td>
+<td>String[]</td>
+<td>必填</td>
+<td>业务 key，支持 SpEL，如 &quot;#orderId&quot;、&quot;#request.id&quot;</td>
+</tr>
+<tr>
+<td>separator</td>
+<td>String</td>
+<td>&quot;:&quot;</td>
+<td>prefix 与 keys 之间的分隔符</td>
+</tr>
+<tr>
+<td>timeout</td>
+<td>long</td>
+<td>10</td>
+<td>获取锁最大等待时间</td>
+</tr>
+<tr>
+<td>timeUnit</td>
+<td>TimeUnit</td>
+<td>SECONDS</td>
+<td>timeout 的单位</td>
+</tr>
+<tr>
+<td>timeOutHandler</td>
+<td>Class</td>
+<td>DefaultLockTimeoutHandler</td>
+<td>获取锁超时时的处理类，需为 Spring Bean</td>
+</tr>
+</tbody>
+</table>
+<h3 id="44-自定义锁超时处理器">4.4 自定义锁超时处理器</h3>
+<p>实现 <code>LockTimeoutHandler</code> 并注册为 Bean，在注解上指定 <code>timeOutHandler</code>：</p>
+<pre><code class="language-java">@Component
+public class CustomLockTimeoutHandler implements LockTimeoutHandler {
+
+    @Override
+    public void handler(String lockName) {
+        log.warn(&quot;获取锁超时, lockName={}&quot;, lockName);
+        throw new ServiceException(&quot;系统繁忙，请稍后再试&quot;);
+    }
+}
+</code></pre>
+<pre><code class="language-java">@ILock(keys = {&quot;#id&quot;}, timeOutHandler = CustomLockTimeoutHandler.class, timeout = 5)
+public void doSomething(Long id) { ... }
+</code></pre>
+<h3 id="45-编程式使用可选">4.5 编程式使用（可选）</h3>
+<p>若需要更细粒度控制（例如在方法中间加锁、或根据条件加锁），可直接注入 <code>LockManager</code>，按类型取 <code>ILocker</code> 后手动 tryLock/unlock：</p>
+<pre><code class="language-java">@Service
+public class ManualLockService {
+
+    private final LockManager lockManager;
+
+    public void doSomething(String resourceId) {
+        ILocker locker = lockManager.getLock(LockType.Reentrant);
+        boolean acquired = locker.tryLock(&quot;my:lock:&quot; + resourceId, TimeUnit.SECONDS, 5);
+        if (!acquired) {
+            throw new ServiceException(&quot;获取锁失败&quot;);
+        }
+        try {
+            // 业务逻辑
+        } finally {
+            locker.unlock(&quot;my:lock:&quot; + resourceId);
+        }
+    }
+}
+</code></pre>
+<p>注意：编程式使用时必须保证 <strong>finally 中 unlock</strong>，避免异常导致锁泄漏。</p>
+<hr>
+<h2 id="5-归纳总结">5. 归纳总结</h2>
+<ul>
+<li><strong>解决的问题</strong>：在分布式环境下，对“同一业务资源”提供跨 JVM 的互斥能力，避免重复扣减、重复发放、并发覆盖等问题；支持可重入、公平、读锁、写锁多种语义。</li>
+<li><strong>设计要点</strong>：注解驱动 + LockType 与多种锁实现映射（LockManager）+ SpEL 解析 key + tryLock(waitTime) 与 finally 释放；超时后走可插拔的 LockTimeoutHandler，默认抛异常不执行业务。</li>
+<li><strong>实现要点</strong>：AbstractLock 统一封装 Redisson 的 getLock/getFairLock/readLock/writeLock，子类仅声明 supportType；切面拼 lockName、按类型取锁、tryLock 成功才 proceed 并在 finally 中 unlock；InterruptedException 被捕获并转为 tryLock 失败，由超时处理器统一处理。</li>
+<li><strong>使用方式</strong>：引入依赖后通过 <code>@ILock(keys = {...}, lockType = ..., timeout = ...)</code> 声明式加锁；可按需自定义 LockTimeoutHandler；需要更细粒度时通过 LockManager 获取 ILocker 手动加解锁，并务必在 finally 中释放。</li>
+</ul>
+<p>本模块在保证分布式互斥、防止重复操作与并发覆盖方面可直接用于生产；使用中需注意 key 的唯一性与业务含义、timeout 与业务耗时的匹配，以及读写锁与公平锁的适用场景选择。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[幂等模块（idempotent）技术分享]]></title>
+        <id>https://da1v4d.github.io/post/mi-deng-mo-kuai-idempotentji-zhu-fen-xiang/</id>
+        <link href="https://da1v4d.github.io/post/mi-deng-mo-kuai-idempotentji-zhu-fen-xiang/">
+        </link>
+        <updated>2026-03-06T01:24:16.000Z</updated>
+        <summary type="html"><![CDATA[<h3 id="11-业务背景">1.1 业务背景</h3>
+<p>在并发场景下，常见两类重复执行问题：</p>
+<ul>
+<li><strong>REST API</strong>：用户重复点击、网络重试、前端重复提交，导致同一笔订单/支付被处理多次。</li>
+<li><strong>消息队列</strong>：MQ 重试、重复投递导致同一条消息被消费多次，产生重复扣款、重复发货等。</li>
+</ul>
+<p>若不对“同一请求/同一条消息”做幂等控制，会产生<strong>重复扣款、重复下单、重复发货</strong>等资金与数据一致性问题。</p>
+]]></summary>
+        <content type="html"><![CDATA[<h3 id="11-业务背景">1.1 业务背景</h3>
+<p>在并发场景下，常见两类重复执行问题：</p>
+<ul>
+<li><strong>REST API</strong>：用户重复点击、网络重试、前端重复提交，导致同一笔订单/支付被处理多次。</li>
+<li><strong>消息队列</strong>：MQ 重试、重复投递导致同一条消息被消费多次，产生重复扣款、重复发货等。</li>
+</ul>
+<p>若不对“同一请求/同一条消息”做幂等控制，会产生<strong>重复扣款、重复下单、重复发货</strong>等资金与数据一致性问题。</p>
+<!--more-->
+<h3 id="12-模块目标">1.2 模块目标</h3>
+<p>幂等模块要解决的核心问题是：<strong>在多种业务场景下，对“同一操作”只允许被成功执行一次，后续重复请求/消息应被识别并拒绝或直接返回已有结果</strong>。</p>
+<p>具体包括：</p>
+<ul>
+<li><strong>REST API 防重复提交</strong>：同一用户在短时间内的重复请求只处理一次。</li>
+<li><strong>一次性 Token 校验</strong>：先领 Token、再带 Token 请求，保证一次一用。</li>
+<li><strong>基于业务键的幂等</strong>：用 SpEL 从参数/消息中提取业务唯一键（如订单号、消息 ID），按键做幂等。</li>
+<li><strong>为 MQ 场景预留扩展</strong>：通过 <code>IdempotentScene.MQ</code>、<code>RepeatConsumptionException</code> 等设计，便于后续做 MQ 幂等（当前实现以 REST 为主）。</li>
+</ul>
+<hr>
+<h2 id="2-为什么这样设计如何设计实现的关键细节">2. 为什么这样设计，如何设计实现的（关键细节）</h2>
+<h3 id="21-整体架构思路">2.1 整体架构思路</h3>
+<ul>
+<li><strong>注解驱动</strong>：用 <code>@Idempotent</code> 标记需要幂等的方法，业务无侵入。</li>
+<li><strong>场景 + 类型二维选择</strong>：<code>IdempotentScene</code>（如 RESTAPI/MQ）× <code>IdempotentType</code>（TOKEN/PARAM/SPEL），不同组合对应不同策略。</li>
+<li><strong>策略可插拔</strong>：每种策略一个 Handler，由工厂按注解参数选择，便于扩展新场景（如 MQ）或新类型。</li>
+</ul>
+<p>这样设计的原因：幂等“如何识别同一请求”在不同场景下差异大（Token 一次性、参数 MD5、业务主键等），用“场景 + 类型”可以清晰区分，并用独立 Handler 实现，避免在一个类里堆满 if-else。</p>
+<h3 id="22-核心流程aop-模板方法">2.2 核心流程（AOP + 模板方法）</h3>
+<pre><code>请求进入 → @Idempotent 切面 → 根据 scene/type 取 Handler → execute(joinPoint, idempotent)
+         → buildWrapper() 构建幂等键/锁键
+         → handler() 执行幂等校验（取锁 / 校验 Token / 等）
+         → 校验通过则 proceed() 执行业务
+         → 若抛 RepeatConsumptionException 且 error==false 可返回 null（为 MQ 预留）
+         → 若业务异常则 exceptionProcessing()（如释放锁）
+         → 最后 postProcessing()（释放锁） + IdempotentContext.clean()
+</code></pre>
+<p>要点：</p>
+<ul>
+<li><strong>切面顺序</strong>：<code>@Order(Ordered.HIGHEST_PRECEDENCE)</code>，保证幂等校验优先于其他切面（如日志、权限）。</li>
+<li><strong>模板方法</strong>：<code>AbstractIdempotentExecuteHandler</code> 中 <code>execute()</code> 先 <code>buildWrapper()</code> 再 <code>handler()</code>，子类只实现“如何建键”和“如何校验”，锁的释放放在 <code>postProcessing()</code>/<code>exceptionProcessing()</code>，避免重复写 finally。</li>
+</ul>
+<h3 id="23-三种幂等类型的关键实现">2.3 三种幂等类型的关键实现</h3>
+<h4 id="231-token一次性令牌">2.3.1 TOKEN（一次性令牌）</h4>
+<ul>
+<li><strong>思路</strong>：先调用接口拿 Token，再在业务请求头里带 <code>Idempotent-Token</code>；服务端校验到 Token 存在则删除并放行，删除失败或缺失则认为是重复/非法。</li>
+<li><strong>关键细节</strong>：
+<ul>
+<li>Token 生成：<code>prefix + UUID</code>，存入 Redis，key 为 <code>idempotent:token:</code> + token，带过期时间（配置或默认 60s）。</li>
+<li>校验时用 <code>DistributedCache.delete(TOKEN_PREFIX_KEY + token)</code>，只有删除成功才放行，保证<strong>一 Token 只能用一次</strong>。</li>
+<li>未带 Token 或 Token 已用/过期会抛 <code>ClientException</code>，提示信息可用 <code>@Idempotent.message()</code> 配置。</li>
+</ul>
+</li>
+</ul>
+<h4 id="232-param基于请求参数">2.3.2 PARAM（基于请求参数）</h4>
+<ul>
+<li><strong>思路</strong>：用“服务名 + 请求路径 + 请求体 MD5”生成唯一键，对该键抢分布式锁；抢到锁则视为首次请求并执行业务，抢不到则视为重复。</li>
+<li><strong>关键细节</strong>：
+<ul>
+<li>Key 格式：<code>idempotent:service:[applicationName]:path:[servletPath]:md5:[argsMD5]</code>，保证同接口、同参数会命中同一把锁。</li>
+<li>使用 Redisson <code>RLock.tryLock()</code>，不阻塞；拿不到锁直接抛 <code>ClientException(message)</code>。</li>
+<li>锁在 <code>IdempotentContext</code>（ThreadLocal）中保存，在 <code>postProcessing()</code> 中统一 <code>unlock()</code>，避免业务异常导致锁泄漏。</li>
+</ul>
+</li>
+</ul>
+<h4 id="233-spel基于-spel-表达式">2.3.3 SPEL（基于 SpEL 表达式）</h4>
+<ul>
+<li><strong>思路</strong>：由业务在注解里写 SpEL（如 <code>#id</code>、<code>#request.orderId</code>），从方法参数中解析出业务唯一键，再对该键加锁。</li>
+<li><strong>关键细节</strong>：
+<ul>
+<li><code>buildWrapper</code> 里通过 <code>SpELUtil.parseKey(idempotent.key(), method, args)</code> 得到 <code>lockKey</code>，再可加 <code>uniqueKeyPrefix</code>、<code>keyTimeout</code>（为 MQ 等场景预留）。</li>
+<li>与 PARAM 类似，用 Redisson 对 <code>uniqueKeyPrefix + lockKey</code> 加锁，成功则放入 <code>IdempotentContext</code>，在 <code>postProcessing()</code> 释放；并在 <code>exceptionProcessing()</code> 里也释放锁，避免业务异常时锁不释放。</li>
+</ul>
+</li>
+</ul>
+<h3 id="24-锁与上下文的统一管理">2.4 锁与上下文的统一管理</h3>
+<ul>
+<li><strong>IdempotentContext</strong>：ThreadLocal&lt;Map&lt;String, RLock&gt;&gt;，存当前请求在本线程内拿到的幂等锁（如 PARAM 的 <code>idempotent:param:restApi</code>、SPEL 的 <code>lock:spEL:restAPI</code>），便于在 <code>postProcessing()</code>/<code>exceptionProcessing()</code> 中统一释放。</li>
+<li><strong>finally 中 clean()</strong>：每个请求结束（成功或异常）都会执行 <code>IdempotentContext.clean()</code>，避免 ThreadLocal 泄漏。</li>
+</ul>
+<h3 id="25-工厂与自动装配">2.5 工厂与自动装配</h3>
+<ul>
+<li><strong>IdempotentExecuteHandlerFactory</strong>：根据 <code>IdempotentScene</code> + <code>IdempotentType</code> 从 Spring 容器取对应 Bean（如 RESTAPI + PARAM → <code>IdempotentParamService</code>），当前仅实现 RESTAPI 下的三种 type。</li>
+<li><strong>IdempotentConfiguration</strong>：通过 <code>spring.factories</code> 自动装配，注册切面、三种 Handler（以 Service 接口暴露）、Token 控制器；并 <code>@EnableConfigurationProperties(IdempotentProperties.class)</code> 绑定 <code>framework.idempotent.token.prefix/timeout</code>。</li>
+</ul>
+<h3 id="26-为-mq-预留的设计">2.6 为 MQ 预留的设计</h3>
+<ul>
+<li><strong>IdempotentScene.MQ</strong>：枚举已定义，工厂中未实现具体 Handler，便于后续加 MQ 专用 Handler。</li>
+<li><strong>RepeatConsumptionException(error)</strong>：Aspect 中若捕获到且 <code>!ex.getError()</code> 可返回 null，注释说明用于“消息已处理成功，直接返回成功”的场景，与“消息处理中需重试”区分，方便对接 RocketMQ 等重试语义。</li>
+<li><strong>uniqueKeyPrefix / keyTimeout</strong>：在 SPEL 上预留，MQ 场景可按消息 ID 或业务键 + 前缀/过期时间做幂等。</li>
+</ul>
+<hr>
+<h2 id="3-这样设计的优点">3. 这样设计的优点</h2>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>业务无侵入</strong></td>
+<td>仅加 <code>@Idempotent</code> 注解即可，键的生成、锁的获取与释放、异常处理都在框架内完成。</td>
+</tr>
+<tr>
+<td><strong>策略清晰可扩展</strong></td>
+<td>场景 × 类型对应不同 Handler，新增 MQ 或新类型只需新增 Handler 并在工厂中挂接，符合开闭原则。</td>
+</tr>
+<tr>
+<td><strong>统一抽象</strong></td>
+<td><code>IdempotentExecuteHandler</code> 的 execute/handler/postProcessing/exceptionProcessing 把“建键 → 校验 → 执行业务 → 收尾”固定下来，避免各实现类逻辑分散。</td>
+</tr>
+<tr>
+<td><strong>锁安全</strong></td>
+<td>锁放入 ThreadLocal，在 finally 中 postProcessing 释放，异常时 exceptionProcessing 也释放，降低锁未释放风险。</td>
+</tr>
+<tr>
+<td><strong>可配置</strong></td>
+<td>Token 前缀、过期时间、SpEL key、message 等均可配置或注解指定，适配不同业务。</td>
+</tr>
+<tr>
+<td><strong>与现有技术栈一致</strong></td>
+<td>依赖 Redisson、分布式缓存、Spring 生态，和项目内其他模块风格统一。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="4-使用方法介绍">4. 使用方法介绍</h2>
+<h3 id="41-依赖与配置">4.1 依赖与配置</h3>
+<ul>
+<li>引入模块依赖（如 <code>framework-biz-idempotent</code>），该模块已依赖 <code>framework-web</code>、<code>framework-cache</code>。</li>
+<li>自动装配：引入后无需额外开关，<code>IdempotentConfiguration</code> 会通过 <code>spring.factories</code> 加载。</li>
+<li>可选配置（如 <code>application.yml</code>）：</li>
+</ul>
+<pre><code class="language-yaml">framework:
+  idempotent:
+    token:
+      prefix: &quot;idempotent:&quot;   # Token 前缀，可选
+      timeout: 60000         # Token 过期时间（毫秒），可选
+</code></pre>
+<h3 id="42-token-方式rest-api一次性令牌">4.2 Token 方式（REST API，一次性令牌）</h3>
+<ol>
+<li>先调接口获取 Token（框架提供）：
+<ul>
+<li>路径：<code>GET {框架路径}/idempotent/createToken</code>（如 <code>ServletConstants.DEFAULT_FRAMEWORK_PATH</code> 为 <code>/api</code> 时，为 <code>GET /api/idempotent/createToken</code>）。</li>
+</ul>
+</li>
+<li>在业务请求头中携带该 Token：
+<ul>
+<li>Header：<code>Idempotent-Token: &lt;token&gt;</code>。</li>
+</ul>
+</li>
+<li>在需要防重的接口上使用注解：</li>
+</ol>
+<pre><code class="language-java">@PostMapping(&quot;/create&quot;)
+@Idempotent(type = IdempotentType.TOKEN, message = &quot;操作过于频繁，请稍后再试&quot;)
+public Result&lt;OrderDTO&gt; createOrder(@RequestBody OrderRequest request) {
+    // 订单创建逻辑
+    return Result.success(orderDTO);
+}
+</code></pre>
+<h3 id="43-param-方式rest-api同接口同参数防重">4.3 PARAM 方式（REST API，同接口同参数防重）</h3>
+<p>根据“服务名 + 路径 + 请求体 MD5”自动生成幂等键，无需前端传 Token：</p>
+<pre><code class="language-java">@PostMapping(&quot;/pay&quot;)
+@Idempotent(type = IdempotentType.PARAM, message = &quot;支付请求正在处理中，请稍后再试&quot;)
+public Result&lt;String&gt; pay(@RequestBody PaymentRequest request) {
+    // 支付逻辑
+    return Result.success(&quot;支付成功&quot;);
+}
+</code></pre>
+<h3 id="44-spel-方式rest-api按业务键防重">4.4 SPEL 方式（REST API，按业务键防重）</h3>
+<p>从方法参数中通过 SpEL 提取唯一键，适合“同一业务主键只处理一次”的场景：</p>
+<pre><code class="language-java">@PostMapping(&quot;/update/{id}&quot;)
+@Idempotent(type = IdempotentType.SPEL,
+            key = &quot;#id + ':' + #request.version&quot;,
+            message = &quot;用户信息更新请求正在处理中，请稍后再试&quot;)
+public Result&lt;UserDTO&gt; updateUser(@PathVariable Long id, @RequestBody UserUpdateRequest request) {
+    // 用户更新逻辑
+    return Result.success(userDTO);
+}
+</code></pre>
+<p>注解属性简要说明：</p>
+<ul>
+<li><strong>key</strong>：SpEL 表达式，仅 type=SPEL 时生效。</li>
+<li><strong>message</strong>：幂等校验失败时返回的提示。</li>
+<li><strong>type</strong>：TOKEN / PARAM / SPEL。</li>
+<li><strong>scene</strong>：当前使用默认 RESTAPI 即可。</li>
+<li><strong>uniqueKeyPrefix / keyTimeout</strong>：可选，多用于 MQ 或需要自定义 Redis key 前缀与过期时间时。</li>
+</ul>
+<h3 id="45-异常处理建议">4.5 异常处理建议</h3>
+<p>幂等校验失败会抛出 <code>ClientException</code>（或带错误码的异常），建议在全局异常处理中统一封装返回：</p>
+<pre><code class="language-java">@RestControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(ClientException.class)
+    public Result&lt;String&gt; handleClientException(ClientException e) {
+        return Result.failure(e.getErrorCode(), e.getMessage());
+    }
+}
+</code></pre>
+<hr>
+<h2 id="5-归纳总结">5. 归纳总结</h2>
+<ul>
+<li><strong>解决的问题</strong>：在 REST API（及预留 MQ）场景下，防止同一操作被重复执行导致的数据与资金不一致；支持“一次性 Token”“同参数防重”“按业务键防重”三种方式。</li>
+<li><strong>设计要点</strong>：注解驱动 + 场景/类型二维选择 + 策略模式（Handler 工厂）+ 模板方法（建键 → 校验 → 执行业务 → 收尾）；锁与上下文统一管理，异常与正常出口都释放锁并清理 ThreadLocal。</li>
+<li><strong>实现要点</strong>：TOKEN 用 Redis 存删实现一次一用；PARAM 用“服务+路径+参数 MD5”+ Redisson 锁；SPEL 用表达式解析业务键再加锁；通过 IdempotentContext 和 postProcessing/exceptionProcessing 保证锁不泄漏。</li>
+<li><strong>使用方式</strong>：引入依赖即可生效；REST 推荐 TOKEN 或 PARAM，需要按业务主键时用 SPEL；配置 Token 前缀与超时可选；对 ClientException 做全局处理即可。</li>
+</ul>
+<p>该模块在保证接口幂等、防止重复提交与重复消费方面可直接用于生产，后续扩展 MQ 场景时只需增加 MQ 的 Handler 并在工厂中按 <code>IdempotentScene.MQ</code> 分支即可。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Allatori Maven Plugin]]></title>
+        <id>https://da1v4d.github.io/post/allatori-maven-plugin/</id>
+        <link href="https://da1v4d.github.io/post/allatori-maven-plugin/">
+        </link>
+        <updated>2026-03-06T00:44:29.000Z</updated>
+        <summary type="html"><![CDATA[<p>Allatori Maven Plugin 是一个用于 <a href="http://allatori.com/">Allatori Java 混淆器</a> 的 Maven 插件，在 Maven 构建过程中自动执行 Java 字节码混淆，无需单独安装 Allatori 或手写命令行。</p>
+]]></summary>
+        <content type="html"><![CDATA[<p>Allatori Maven Plugin 是一个用于 <a href="http://allatori.com/">Allatori Java 混淆器</a> 的 Maven 插件，在 Maven 构建过程中自动执行 Java 字节码混淆，无需单独安装 Allatori 或手写命令行。</p>
+<!--more-->
+<hr>
+<h2 id="一-设计原理">一、设计原理</h2>
+<h3 id="11-为什么需要本插件">1.1 为什么需要本插件</h3>
+<ul>
+<li><strong>Allatori 官方用法</strong>：通常需要单独下载 Allatori、配置 <code>allatori.xml</code>，再在命令行执行 <code>java -jar allatori.jar config.xml</code>，且配置中的路径往往需要与 Maven 的 <code>target</code>、<code>finalName</code> 等保持一致。</li>
+<li><strong>本插件的目标</strong>：把“读配置 → 替换 Maven 变量 → 调用 Allatori”这一流程固化到 Maven 的 <strong>package</strong> 阶段，实现“打包即混淆”，并支持 <code>${var}</code> 与 <code>@var@</code> 两种变量格式，便于与标准 Maven 及 Spring Boot 资源过滤习惯一致。</li>
+</ul>
+<h3 id="12-与-maven-生命周期的关系">1.2 与 Maven 生命周期的关系</h3>
+<ul>
+<li>插件唯一 Goal：<code>obfuscate</code>，绑定在 <strong>LifecyclePhase.PACKAGE</strong>。</li>
+<li>执行顺序：在 <code>package</code> 阶段，Maven 会先完成 <code>jar:jar</code>（或 <code>war:war</code> 等），生成未混淆的产物（如 <code>target/xxx.jar</code>），随后执行本插件的 <code>obfuscate</code>，读取用户提供的 <code>allatori.xml</code>，替换其中的 Maven 变量，再以 <strong>子进程</strong> 方式调用 <code>java -jar allatori.jar &lt;处理后的配置文件&gt;</code>，在指定输出目录生成混淆后的 jar。</li>
+<li>设计要点：<strong>不修改 Maven 内置的打包逻辑</strong>，只在打包之后增加一步“混淆”，输入为已有 jar + 配置文件，输出为混淆后的 jar，便于与 CI/CD 和现有 pom 配置兼容。</li>
+</ul>
+<h3 id="13-变量替换与单一事实来源">1.3 变量替换与“单一事实来源”</h3>
+<ul>
+<li>配置文件中往往需要“构建输出目录”“最终 jar 名”等，这些在 Maven 中已有唯一事实来源（如 <code>project.build.directory</code>、<code>project.build.finalName</code>）。</li>
+<li>插件在 <strong>不修改用户原始配置文件</strong> 的前提下，将配置内容读入内存，做 <strong>纯字符串级</strong> Maven 变量替换（<code>${...}</code> 与 <code>@...@</code>），再写出到构建目录下的临时文件（<code>allatori-processed.xml</code>），并用该临时文件驱动 Allatori；<strong>不解析 XML 结构</strong>，不依赖 Allatori 的 schema，从而保证“路径与名称”全部来自 Maven，避免手写绝对路径或重复维护多份配置。</li>
+<li>替换后的配置文件完整内容会逐行输出到 Maven 日志，便于在 CI 或本地排查变量是否按预期替换。</li>
+</ul>
+<h3 id="14-allatori-的提供方式">1.4 Allatori 的提供方式</h3>
+<ul>
+<li><strong>内置模式</strong>：插件 resources 中可携带 <code>lib/allatori.jar</code>，运行时若未配置 <code>jarFile</code> 或指向的文件不存在，则从 classpath 解压到系统临时目录（如 <code>java.io.tmpdir/allatori-maven-plugin/allatori.jar</code>）再调用，执行完毕后可选清理临时文件。</li>
+<li><strong>外置模式</strong>：用户通过参数 <code>jarFile</code> 指定本机已有的 Allatori jar，插件直接使用，便于升级 Allatori 版本</li>
+</ul>
+<hr>
+<h2 id="二-底层设计">二、底层设计</h2>
+<h3 id="21-整体架构">2.1 整体架构</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                        Maven Build (package phase)                        │
+└─────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  AllatoriMojo.execute()                                                  │
+│  ┌──────────────┐   ┌─────────────────────┐   ┌──────────────────────┐  │
+│  │ 解析/校验参数  │ → │ 解析 Allatori JAR   │ → │ 校验 config 与 outDir │  │
+│  └──────────────┘   └─────────────────────┘   └──────────────────────┘  │
+│         │                     │                           │               │
+│         ▼                     ▼                           ▼               │
+│  ┌──────────────┐   ┌─────────────────────┐   ┌──────────────────────┐  │
+│  │ processConfig │   │ replaceMavenVars   │   │ executeAllatori       │  │
+│  │ File()        │   │ (${var} / @var@)   │   │ (ProcessBuilder)     │  │
+│  └──────────────┘   └─────────────────────┘   └──────────────────────┘  │
+│         │                     │                           │               │
+│         └─────────────────────┴───────────────────────────┘               │
+│                                      │                                     │
+│                      输出：allatori-processed.xml → Allatori 子进程        │
+└─────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<ul>
+<li><strong>单一 Mojo</strong>：所有逻辑集中在 <code>AllatoriMojo</code>，通过 <code>@Parameter</code> 注入 <code>project</code>、<code>configFile</code>、<code>jarFile</code>、<code>outputDirectory</code>、<code>skip</code>，无额外 Mojo 或复杂依赖树。</li>
+<li><strong>三步流程</strong>：① 确定 Allatori jar（内置解压或用户指定）→ ② 处理配置文件（UTF-8 读写 + 变量替换 + 写临时文件）→ ③ 以 <code>ProcessBuilder</code> 在 <code>outputDirectory</code> 下执行 <code>java -jar allatori.jar &lt;processed.xml&gt;</code>，并消费标准输出/错误，根据退出码决定成功或抛 <code>MojoExecutionException</code>。</li>
+<li><strong>异常与清理</strong>：任一步骤抛出的 <code>Exception</code> 在 <code>execute()</code> 的 catch 中统一包装为 <code>MojoExecutionException</code>；仅当本次使用了“插件解压的” Allatori jar 时，在 <code>finally</code> 中尝试删除该临时 jar（失败仅打 warn）。</li>
+</ul>
+<h3 id="22-模块职责">2.2 模块职责</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>allatori-maven-plugin</strong></td>
+<td>提供唯一 Goal <code>obfuscate</code>，实现配置处理与 Allatori 调用；resources 内可含 <code>lib/allatori.jar</code> 供内置使用。</td>
+</tr>
+<tr>
+<td><strong>allatori-plugin-test</strong></td>
+<td>独立 Maven 项目，依赖并绑定插件，用于人工/集成验证“打包 + 混淆”全流程。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-数据流与文件约定">2.3 数据流与文件约定</h3>
+<ul>
+<li><strong>输入</strong>：用户项目中的 <code>allatori.xml</code>（路径由 <code>configFile</code> 指定）、Maven <code>project</code> 属性、可选 <code>jarFile</code>。</li>
+<li><strong>中间文件</strong>：<code>&lt;outputDirectory&gt;/allatori-processed.xml</code>，即替换变量后的配置；每次执行都会覆盖该文件，并在日志中<strong>逐行输出其完整内容</strong>（<code>getLog().info(line)</code>），便于排错。</li>
+<li><strong>输出</strong>：由 Allatori 根据 <code>allatori-processed.xml</code> 中的 <code>&lt;input&gt;&lt;jar out=&quot;...&quot;/&gt;</code> 等配置写入，通常为同一 <code>outputDirectory</code> 下的混淆后 jar（如 <code>*-obfuscated.jar</code>）。</li>
+<li><strong>工作目录</strong>：<code>ProcessBuilder.directory(outputDirectory)</code>，确保 Allatori 内相对路径与 Maven 构建目录一致。</li>
+<li><strong>临时 Allatori jar</strong>（仅内置模式）：解压到 <code>System.getProperty(&quot;java.io.tmpdir&quot;)/allatori-maven-plugin/allatori.jar</code>；若该文件已存在则不会重复解压（多次构建可复用）；本次执行若为插件解压所得，则在 <code>finally</code> 中尝试删除并打日志（删除失败仅 warn，不抛错）。</li>
+</ul>
+<h3 id="24-扩展与约束">2.4 扩展与约束</h3>
+<ul>
+<li><strong>扩展</strong>：如需支持更多变量，只需在 <code>getMavenProperty(String)</code> 中增加分支或从 <code>project.getProperties()</code> 读取；如需支持多配置文件或 profile，可在 Mojo 层增加参数与循环调用。</li>
+<li><strong>约束</strong>：不在插件内实现混淆算法，不解析 Allatori 的 XML 语义，仅做字符串级变量替换与进程调用，保证“插件只做编排，混淆逻辑完全由 Allatori 负责”。</li>
+</ul>
+<hr>
+<h2 id="三-代码实现">三、代码实现</h2>
+<h3 id="31-核心类与注解">3.1 核心类与注解</h3>
+<ul>
+<li><strong>类</strong>：<code>com.dv.maven.plugin.AllatoriMojo</code>，继承 <code>org.apache.maven.plugin.AbstractMojo</code>。</li>
+<li><strong>Goal 与阶段</strong>：<code>@Mojo(name = &quot;obfuscate&quot;, defaultPhase = LifecyclePhase.PACKAGE)</code>，即执行 <code>mvn package</code> 时会触发 <code>obfuscate</code>。</li>
+</ul>
+<h3 id="32-参数parameter">3.2 参数（@Parameter）</h3>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>说明</th>
+<th>默认/必填</th>
+<th>命令行覆盖属性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>project</code></td>
+<td>MavenProject</td>
+<td>当前 Maven 项目</td>
+<td><code>${project}</code>，只读</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>configFile</code></td>
+<td>File</td>
+<td>Allatori 配置文件路径</td>
+<td>必填，无默认</td>
+<td><code>allatori.configFile</code></td>
+</tr>
+<tr>
+<td><code>jarFile</code></td>
+<td>File</td>
+<td>Allatori 可执行 jar 路径</td>
+<td>可选；不填或不存在则用内置</td>
+<td><code>allatori.jarFile</code></td>
+</tr>
+<tr>
+<td><code>outputDirectory</code></td>
+<td>File</td>
+<td>混淆输出目录，兼作 Allatori 工作目录</td>
+<td><code>${project.build.directory}</code></td>
+<td><code>allatori.outputDirectory</code></td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>boolean</td>
+<td>是否跳过混淆</td>
+<td><code>false</code></td>
+<td><code>allatori.skip</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>命令行覆盖示例：<code>mvn package -Dallatori.skip=true</code>、<code>mvn package -Dallatori.configFile=path/to/config.xml</code>。</li>
+</ul>
+<h3 id="33-执行流程execute">3.3 执行流程（execute）</h3>
+<ol>
+<li><strong>skip</strong>：若 <code>skip == true</code>，直接 return，不执行后续逻辑。</li>
+<li><strong>解析 Allatori jar</strong>：若 <code>jarFile == null</code> 或不存在，调用 <code>extractAllatoriJar()</code> 从 <code>getClass().getResourceAsStream(&quot;/lib/allatori.jar&quot;)</code> 解压到 <code>java.io.tmpdir/allatori-maven-plugin/allatori.jar</code>，并标记为临时文件以便 finally 中删除。</li>
+<li><strong>校验</strong>：检查 <code>jarFile</code>、<code>configFile</code> 存在性，若不存在则抛出 <code>MojoExecutionException</code>；确保 <code>outputDirectory</code> 存在（不存在则 <code>mkdirs()</code>）。</li>
+<li><strong>处理配置</strong>：<code>processConfigFile()</code> → 见下文。</li>
+<li><strong>执行 Allatori</strong>：<code>executeAllatori(processedConfigFile)</code> → 见下文。</li>
+<li><strong>清理</strong>：在 finally 中若存在“本次解压的”临时 jar，则尝试删除并打日志。</li>
+</ol>
+<h3 id="34-配置处理processconfigfile">3.4 配置处理（processConfigFile）</h3>
+<ul>
+<li><strong>读取</strong>：<code>Files.readAllBytes(configFile.toPath())</code>，再以 <strong>UTF-8</strong> 解码为字符串（源码使用 <code>&quot;UTF-8&quot;</code> 字面量）。</li>
+<li><strong>替换</strong>：调用 <code>replaceMavenVariables(content)</code> 得到新字符串（不修改原文件）。</li>
+<li><strong>写出</strong>：将结果写入 <code>&lt;outputDirectory&gt;/allatori-processed.xml</code>，编码 <strong>UTF-8</strong>（<code>content.getBytes(&quot;UTF-8&quot;)</code>）；若文件已存在则覆盖。</li>
+<li><strong>日志</strong>：写入后使用 <code>BufferedReader</code> + <code>InputStreamReader(..., &quot;UTF-8&quot;)</code> 按行读取该文件，<strong>每一行</strong>通过 <code>getLog().info(line)</code> 输出到控制台，便于调试与审计。</li>
+<li><strong>异常</strong>：任何 <code>IOException</code> 包装为 <code>MojoExecutionException(&quot;Failed to process Allatori config file&quot;, e)</code> 抛出。</li>
+</ul>
+<h3 id="35-变量替换replacemavenvariables">3.5 变量替换（replaceMavenVariables）</h3>
+<ul>
+<li><strong>执行顺序</strong>：先处理所有 <strong><code>${var}</code></strong>，再处理所有 <strong><code>@var@</code></strong>；两种格式互不嵌套解析。</li>
+<li><strong><code>${var}</code> 规则</strong>：从当前内容中找 <code>&quot;${&quot;</code>，再找其后第一个 <code>&quot;}&quot;</code>，中间子串为变量名；若 <code>getMavenProperty(var)</code> 非 null 则整体替换为值，并从替换后位置继续找下一个 <code>&quot;${&quot;</code>；否则从该 <code>&quot;}&quot;</code> 之后继续找。若找不到配对 <code>&quot;}&quot;</code> 则结束本轮。</li>
+<li><strong><code>@var@</code> 规则</strong>：找 <code>&quot;@&quot;</code>，再找其后下一个 <code>&quot;@&quot;</code>，且要求 <code>end &gt; start + 1</code>（即排除 <code>@@</code> 空变量）；中间子串为变量名，替换逻辑同 <code>${}</code>。未匹配的占位符<strong>原样保留</strong>，不抛错。</li>
+<li><strong>注意</strong>：嵌套写法如 <code>${a${b}}</code> 会按“第一个 <code>${</code> 到第一个 <code>}</code>”截取，得到变量名 <code>a${b</code>，通常非预期；建议避免嵌套。</li>
+</ul>
+<h3 id="36-maven-属性解析getmavenproperty">3.6 Maven 属性解析（getMavenProperty）</h3>
+<ul>
+<li><strong>解析顺序</strong>：① <code>project.getProperties().getProperty(propertyName)</code>（pom 的 <code>&lt;properties&gt;</code> 及 Maven 内置属性）；② <code>System.getProperty(propertyName)</code>；③ 内置 switch 写死的六项：<code>project.basedir</code>（<code>project.getBasedir().getAbsolutePath()</code>）、<code>project.build.directory</code>、<code>project.build.outputDirectory</code>、<code>project.build.finalName</code>、<code>project.artifactId</code>、<code>project.version</code>。</li>
+<li><strong>返回值</strong>：均无则返回 <code>null</code>；调用方在 <code>replaceMavenVariables</code> 中不会替换该占位符（保留原样）。</li>
+</ul>
+<h3 id="37-执行-allatoriexecuteallatori">3.7 执行 Allatori（executeAllatori）</h3>
+<ul>
+<li><strong>命令</strong>：<code>java -Xms128m -Xmx512m -jar &lt;jarFile 绝对路径&gt; &lt;processedConfigFile 绝对路径&gt;</code>；JVM 堆固定为 128m/512m，如需调整需改源码。</li>
+<li><strong>进程</strong>：<code>ProcessBuilder(command)</code>，<code>processBuilder.directory(outputDirectory)</code>，<code>redirectErrorStream(true)</code>（标准错误合并到标准输出）。</li>
+<li><strong>输出消费</strong>：启动后使用 <code>BufferedReader(new InputStreamReader(process.getInputStream()))</code> 逐行读取（<strong>未指定 charset，使用 JVM 默认编码</strong>），每行 <code>getLog().info(line)</code>，并拼入 <code>StringBuilder</code> 供失败时输出。</li>
+<li><strong>退出码</strong>：<code>process.waitFor()</code>；若 <code>exitCode != 0</code>，先 <code>getLog().error(...)</code> 输出完整内容，再抛 <code>MojoExecutionException(&quot;Allatori execution failed with exit code: &quot; + exitCode + &quot;. Output: &quot; + output)</code>。</li>
+<li><strong>异常</strong>：<code>IOException</code> 或 <code>InterruptedException</code> 时包装为 <code>MojoExecutionException(&quot;Failed to execute Allatori obfuscator&quot;, e)</code>；若为 <code>InterruptedException</code> 会调用 <code>Thread.currentThread().interrupt()</code> 恢复中断状态。</li>
+<li><strong>清理</strong>：<code>finally</code> 中若 <code>process != null</code> 则调用 <code>process.destroy()</code>（未使用 <code>destroyForcibly()</code>，为正常结束子进程）。</li>
+</ul>
+<h3 id="38-内置-jar-解压extractallatorijar">3.8 内置 jar 解压（extractAllatoriJar）</h3>
+<ul>
+<li><strong>临时目录</strong>：<code>new File(System.getProperty(&quot;java.io.tmpdir&quot;), &quot;allatori-maven-plugin&quot;)</code>，若不存在则 <code>mkdirs()</code>，失败抛 <code>MojoExecutionException</code>。</li>
+<li><strong>目标文件</strong>：<code>&lt;tempDir&gt;/allatori.jar</code>。若该文件<strong>已存在</strong>则直接返回，不重复解压（多模块或多次构建可复用）。</li>
+<li><strong>解压来源</strong>：<code>getClass().getResourceAsStream(&quot;/lib/allatori.jar&quot;)</code>；若为 null 抛 <code>MojoExecutionException(&quot;Embedded Allatori jar not found in plugin resources&quot;)</code>。</li>
+<li><strong>拷贝</strong>：4KB 缓冲区，<code>InputStream.read(buffer)</code> → <code>OutputStream.write(buffer, 0, bytesRead)</code>，直到读尽。任何 <code>IOException</code> 包装后抛出。</li>
+</ul>
+<h3 id="39-未使用的默认配置方法extractdefaultconfigfile">3.9 未使用的默认配置方法（extractDefaultConfigFile）</h3>
+<ul>
+<li>源码中存在 <code>extractDefaultConfigFile()</code>：从 <code>/allatori.xml</code> 资源解压到临时目录的 <code>allatori.xml</code>。<strong>当前 Mojo 从未调用该方法</strong>，配置文件必须通过 <code>configFile</code> 显式指定，无“默认配置”行为。</li>
+</ul>
+<h3 id="310-异常与失败行为汇总">3.10 异常与失败行为汇总</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>skip == true</code></td>
+<td>直接 return，打 info 日志，不抛错。</td>
+</tr>
+<tr>
+<td>内置 jar 资源不存在</td>
+<td><code>MojoExecutionException(&quot;Embedded Allatori jar not found in plugin resources&quot;)</code>。</td>
+</tr>
+<tr>
+<td>解压/创建临时目录失败</td>
+<td><code>MojoExecutionException(&quot;Failed to create temporary directory: ...&quot;)</code> 或 <code>&quot;Failed to extract Allatori jar&quot;</code>。</td>
+</tr>
+<tr>
+<td>jarFile / configFile 不存在</td>
+<td><code>MojoExecutionException(&quot;Allatori jar/file config file not found: ...&quot;)</code>。</td>
+</tr>
+<tr>
+<td>处理配置文件 IO 异常</td>
+<td><code>MojoExecutionException(&quot;Failed to process Allatori config file&quot;, e)</code>。</td>
+</tr>
+<tr>
+<td>Allatori 子进程退出码非 0</td>
+<td><code>MojoExecutionException(&quot;Allatori execution failed with exit code: ...&quot;)</code>。</td>
+</tr>
+<tr>
+<td>启动子进程或 waitFor 异常</td>
+<td><code>MojoExecutionException(&quot;Failed to execute Allatori obfuscator&quot;, e)</code>。</td>
+</tr>
+<tr>
+<td>任意其他 Exception</td>
+<td><code>execute()</code> 的 catch 统一包装为 <code>MojoExecutionException(&quot;Error executing Allatori obfuscation&quot;, e)</code>。</td>
+</tr>
+<tr>
+<td>临时 jar 删除失败</td>
+<td>仅 <code>getLog().warn(...)</code>，不抛错。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="四-使用说明">四、使用说明</h2>
+<h3 id="41-功能特性">4.1 功能特性</h3>
+<ul>
+<li>支持 Maven 变量替换：<code>${var}</code> 与 <code>@var@</code>（兼容 Spring Boot 资源过滤习惯）。</li>
+<li>自动读取项目中的 Allatori 配置文件，并输出“处理后的配置”到构建目录，便于排查。</li>
+<li>支持内置 Allatori jar（从插件 resources 解压）或通过 <code>jarFile</code> 指定外置 jar。</li>
+<li>配置文件与输出统一使用 UTF-8。</li>
+<li>执行完毕后可清理本次解压的临时 jar。</li>
+</ul>
+<h3 id="42-安装与绑定">4.2 安装与绑定</h3>
+<p>在需要使用混淆的 Maven 项目的 <code>pom.xml</code> 中：</p>
+<pre><code class="language-xml">&lt;build&gt;
+    &lt;plugins&gt;
+        &lt;plugin&gt;
+            &lt;groupId&gt;com.dv&lt;/groupId&gt;
+            &lt;artifactId&gt;allatori-maven-plugin&lt;/artifactId&gt;
+            &lt;version&gt;1.0&lt;/version&gt;
+            &lt;executions&gt;
+                &lt;execution&gt;
+                    &lt;id&gt;obfuscate&lt;/id&gt;
+                    &lt;phase&gt;package&lt;/phase&gt;
+                    &lt;goals&gt;
+                        &lt;goal&gt;obfuscate&lt;/goal&gt;
+                    &lt;/goals&gt;
+                &lt;/execution&gt;
+            &lt;/executions&gt;
+            &lt;configuration&gt;
+                &lt;configFile&gt;${project.basedir}/allatori/allatori.xml&lt;/configFile&gt;
+            &lt;/configuration&gt;
+        &lt;/plugin&gt;
+    &lt;/plugins&gt;
+&lt;/build&gt;
+</code></pre>
+<ul>
+<li>若需跳过混淆（如仅做编译测试）：<code>mvn package -Dallatori.skip=true</code>。</li>
+</ul>
+<h3 id="43-配置项一览">4.3 配置项一览</h3>
+<table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>说明</th>
+<th>默认值</th>
+<th>命令行覆盖（-D）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>configFile</code></td>
+<td>Allatori 配置文件路径（必填）</td>
+<td>无，需在 configuration 中指定</td>
+<td><code>-Dallatori.configFile=路径</code></td>
+</tr>
+<tr>
+<td><code>jarFile</code></td>
+<td>Allatori 可执行 jar 路径</td>
+<td>不指定则使用插件内置版本（若存在）</td>
+<td><code>-Dallatori.jarFile=路径</code></td>
+</tr>
+<tr>
+<td><code>outputDirectory</code></td>
+<td>混淆输出目录，亦为 Allatori 工作目录</td>
+<td><code>${project.build.directory}</code></td>
+<td><code>-Dallatori.outputDirectory=路径</code></td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>是否跳过混淆</td>
+<td><code>false</code></td>
+<td><code>-Dallatori.skip=true</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>命令行传入的属性会覆盖 pom 中 <code>&lt;configuration&gt;</code> 的同一项，便于本地或 CI 临时切换配置而不改 pom。</li>
+</ul>
+<h3 id="44-创建-allatori-配置文件">4.4 创建 Allatori 配置文件</h3>
+<p>在项目根目录下创建目录 <code>allatori</code>，并新建 <code>allatori.xml</code>（或其它路径，与 <code>configFile</code> 一致）。示例：</p>
+<pre><code class="language-xml">&lt;config&gt;
+    &lt;input&gt;
+        &lt;jar in=&quot;${project.build.finalName}.jar&quot; out=&quot;${project.build.finalName}-obfuscated.jar&quot;/&gt;
+    &lt;/input&gt;
+    &lt;keep-names&gt;
+        &lt;class access=&quot;protected+&quot;&gt;
+            &lt;field access=&quot;protected+&quot;/&gt;
+            &lt;method access=&quot;protected+&quot;/&gt;
+        &lt;/class&gt;
+        &lt;class template=&quot;class *Controller&quot;&gt;
+            &lt;method template=&quot;private+ *(**)&quot; parameters=&quot;keep&quot;/&gt;
+        &lt;/class&gt;
+    &lt;/keep-names&gt;
+    &lt;ignore-classes&gt;
+        &lt;class template=&quot;class *springframework*&quot;/&gt;
+        &lt;class template=&quot;class *shardingjdbc*&quot;/&gt;
+        &lt;class template=&quot;class *jni*&quot;/&gt;
+        &lt;class template=&quot;class *alibaba*&quot;/&gt;
+        &lt;class template=&quot;class *persistence*&quot;/&gt;
+    &lt;/ignore-classes&gt;
+&lt;/config&gt;
+</code></pre>
+<ul>
+<li><code>in</code>/<code>out</code> 可使用 Maven 变量；Allatori 的工作目录为 <code>outputDirectory</code>，因此 <code>in</code> 一般为 <code>target/&lt;finalName&gt;.jar</code> 对应的文件名（或相对路径）。</li>
+<li>Spring Boot 项目若使用 <code>@var@</code> 风格，可写成：<code>in=&quot;@project.build.finalName@.jar&quot; out=&quot;@project.build.finalName@-obfuscated.jar&quot;</code>。</li>
+</ul>
+<h3 id="45-内置变量可由插件替换">4.5 内置变量（可由插件替换）</h3>
+<ul>
+<li><code>project.basedir</code> — 项目根目录绝对路径</li>
+<li><code>project.build.directory</code> — 构建输出目录（如 <code>target</code>）</li>
+<li><code>project.build.outputDirectory</code> — 编译输出目录（如 <code>target/classes</code>）</li>
+<li><code>project.build.finalName</code> — 最终构建产物名（不含扩展名）</li>
+<li><code>project.artifactId</code> — 项目 artifactId</li>
+<li><code>project.version</code> — 项目版本</li>
+</ul>
+<p>以及 pom 中 <code>&lt;properties&gt;</code> 和系统属性中的任意键，只要在配置文件中写成 <code>${key}</code> 或 <code>@key@</code> 即可。</p>
+<ul>
+<li><strong>变量替换细节</strong>：先替换所有 <code>${...}</code>，再替换所有 <code>@...@</code>；无法解析的占位符保留原样，不会报错。避免在配置中写嵌套变量（如 <code>${a${b}}</code>），否则可能被截断为 <code>a${b</code>。</li>
+</ul>
+<h3 id="46-构建与运行">4.6 构建与运行</h3>
+<ul>
+<li>正常打包并混淆：<code>mvn clean package</code> 或 <code>mvn clean install</code>。</li>
+<li>插件会在 package 阶段自动执行混淆，控制台可看到处理后的配置文件路径及内容（若开启日志打印）。</li>
+</ul>
+<h3 id="47-常见问题">4.7 常见问题</h3>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>处理建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Allatori config file not found</td>
+<td>确认 <code>configFile</code> 指向的路径存在（如 <code>allatori/allatori.xml</code>），或路径中 Maven 变量是否在运行时已解析。</td>
+</tr>
+<tr>
+<td>混淆后的 jar 无法运行</td>
+<td>检查 <code>keep-names</code>/<code>ignore-classes</code> 等，保留入口类、main 方法及反射/序列化用到的类与成员。</td>
+</tr>
+<tr>
+<td>变量未被替换</td>
+<td>确认写法为 <code>${var}</code> 或 <code>@var@</code>，且变量名与 <code>getMavenProperty</code> 支持的一致（或已在 project.properties 中定义）。</td>
+</tr>
+<tr>
+<td>内存不足</td>
+<td>运行 Maven 时加大 JVM：<code>mvn package -Xms512m -Xmx1024m</code>。Allatori 子进程固定 <code>-Xms128m -Xmx512m</code>，若需调整需修改插件源码 <code>executeAllatori</code> 中的 command 列表。</td>
+</tr>
+<tr>
+<td>Embedded Allatori jar not found</td>
+<td>插件未打包 <code>lib/allatori.jar</code> 或 classpath 无法加载；请在 <code>allatori-maven-plugin/src/main/resources/lib/</code> 下放置 <code>allatori.jar</code>，或使用 <code>-Dallatori.jarFile=...</code> 指定外置 jar。</td>
+</tr>
+<tr>
+<td>临时 jar 删除失败</td>
+<td>多为文件被占用或权限问题；不影响构建结果，仅会打出 warn。可手动清理 <code>java.io.tmpdir/allatori-maven-plugin/</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="48-混淆结果展示">4.8 混淆结果展示</h3>
+<p>执行 <code>mvn clean package</code> 后，插件在 package 阶段自动完成混淆，控制台会输出处理后的配置及 Allatori 执行结果。以下为混淆结果展示（控制台输出截图，作为文档的一部分嵌入）：</p>
+<h2 id=""><img src="https://da1v4d.github.io/post-images/1772758017577.png" alt="混淆结果展示" loading="lazy"></h2>
+<h2 id="五-项目结构">五、项目结构</h2>
+<pre><code>allatori-plugin/
+├── pom.xml                          # 父 POM，聚合两模块
+├── img/                             # 文档图片
+│   └── img.png                      # 混淆结果展示截图
+├── allatori-maven-plugin/           # 插件模块
+│   ├── pom.xml                      # packaging: maven-plugin
+│   └── src/main/
+│       ├── java/com/dv/maven/plugin/
+│       │   └── AllatoriMojo.java    # 唯一 Mojo 实现
+│       └── resources/
+│           └── lib/
+│               └── allatori.jar     # 可选：内置 Allatori（按需放置）
+├── allatori-plugin-test/            # 测试用 Maven 项目
+│   ├── pom.xml                      # 依赖并绑定 allatori-maven-plugin
+│   ├── allatori/
+│   │   └── allatori.xml             # 测试用 Allatori 配置
+│   └── src/main/java/com/dv/
+│       └── App.java
+└── README.md
+</code></pre>
+<hr>
+<h2 id="六-构建与测试插件本身">六、构建与测试插件本身</h2>
+<h3 id="61-技术栈与构建要求">6.1 技术栈与构建要求</h3>
+<ul>
+<li><strong>JDK</strong>：插件源码与编译目标为 <strong>Java 8</strong>（<code>maven.compiler.source/target: 1.8</code>）。</li>
+<li><strong>Maven</strong>：依赖 <code>maven-plugin-api</code>、<code>maven-plugin-annotations</code>、<code>maven-core</code>（版本 3.8.6），以及 <code>maven-resources-plugin</code>（3.3.1）；打包类型为 <code>maven-plugin</code>，使用 <code>maven-plugin-plugin</code> 3.7.0 生成描述符。</li>
+<li><strong>Goal 前缀</strong>：<code>goalPrefix</code> 为 <code>allatori</code>，即命令行可执行 <code>mvn allatori:obfuscate</code>（若未绑定到生命周期）。</li>
+<li><strong>编码</strong>：构建与配置文件读写统一 <strong>UTF-8</strong>（<code>project.build.sourceEncoding</code> 与源码中 <code>&quot;UTF-8&quot;</code>）；子进程标准输出读取使用 JVM 默认编码（未显式传 charset）。</li>
+</ul>
+<h3 id="62-安装与验证">6.2 安装与验证</h3>
+<ul>
+<li>
+<p><strong>安装插件到本地仓库</strong>（在仓库根目录执行）：<br>
+<code>mvn clean install</code></p>
+</li>
+<li>
+<p><strong>仅用测试项目验证</strong>：<br>
+<code>cd allatori-plugin-test &amp;&amp; mvn clean package</code><br>
+完成后在 <code>target/</code> 下查看是否生成混淆后的 jar（由 <code>allatori.xml</code> 的 <code>out</code> 决定）；同时可查看 <code>target/allatori-processed.xml</code> 与控制台日志中的“Processed Allatori config file content”确认变量替换结果。</p>
+</li>
+</ul>
+<hr>
+<h2 id="七-版本历史">七、版本历史</h2>
+<ul>
+<li><strong>1.0</strong>：初始版本；Maven 变量替换（<code>${var}</code> / <code>@var@</code>）；内置或外置 Allatori；UTF-8 配置；临时文件清理。</li>
+</ul>
+<hr>
+<h2 id="八-许可证与反馈">八、许可证与反馈</h2>
+<ul>
+<li>本项目采用 MIT 许可证。</li>
+<li>问题与建议欢迎通过 GitHub Issue 或 Pull Request 反馈。</li>
+</ul>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[如何高效第三方API-技术分享]]></title>
+        <id>https://da1v4d.github.io/post/di-san-fang-api-dui-jie-gui-fan/</id>
+        <link href="https://da1v4d.github.io/post/di-san-fang-api-dui-jie-gui-fan/">
+        </link>
+        <updated>2026-03-05T08:35:05.000Z</updated>
+        <summary type="html"><![CDATA[<h2 id="1-模块介绍">1. 模块介绍</h2>
+<p>本模块用于<strong>对接第三方 API</strong>，将各第三方服务封装为独立的 Maven 子模块，通过 <strong>Feign</strong> 声明式 HTTP 客户端统一调用，配置与鉴权与业务解耦，便于按需引入与维护。</p>
+]]></summary>
+        <content type="html"><![CDATA[<h2 id="1-模块介绍">1. 模块介绍</h2>
+<p>本模块用于<strong>对接第三方 API</strong>，将各第三方服务封装为独立的 Maven 子模块，通过 <strong>Feign</strong> 声明式 HTTP 客户端统一调用，配置与鉴权与业务解耦，便于按需引入与维护。</p>
+<!-- more -->
+<p>当前包含子模块：</p>
+<table>
+<thead>
+<tr>
+<th>子模块</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xxx-external-meeting</code></td>
+<td>某会议平台 API（创建/取消/结束会议、查询会议详情等）</td>
+</tr>
+<tr>
+<td><code>xxx-external-im</code></td>
+<td>某企业通讯回调（事件接收、消息加解密等）</td>
+</tr>
+<tr>
+<td><code>xxx-external-rpa</code></td>
+<td>某 RPA 调度 API（鉴权、任务启动/重试等）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="2-第三方-api-对接要点总结">2. 第三方 API 对接要点总结</h2>
+<h3 id="21-鉴权与安全">2.1 鉴权与安全</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+<th>本模块实践</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>凭证隔离</strong></td>
+<td>密钥、AppId、Token 等不写死在代码中，统一通过 <code>ConfigurationProperties</code> 从配置文件读取。</td>
+<td>各子模块提供 <code>xxxProperties</code>，配置前缀如 <code>external.rpa</code>、<code>external.meeting</code>。</td>
+</tr>
+<tr>
+<td><strong>Token 复用与缓存</strong></td>
+<td>若第三方为 Token 鉴权且有时效，应缓存并在过期前刷新，避免每次请求都拉新 Token。</td>
+<td>某 RPA 平台模块通过 Token 服务 + Redis 缓存 <code>accessToken</code>，过期时间按 <code>expiresIn - 60</code> 秒设置，减少鉴权调用。</td>
+</tr>
+<tr>
+<td><strong>请求头/签名</strong></td>
+<td>很多开放平台要求固定请求头（AppId、SdkId、时间戳、随机数）或对 Body/URI 做签名。</td>
+<td>某会议平台模块在 Feign 拦截器中统一注入公共头并计算签名，业务 Feign 接口只关心路径与参数。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-接口契约与模型">2.2 接口契约与模型</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+<th>本模块实践</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>请求/响应 DTO 与文档一致</strong></td>
+<td>请求体、响应体与官方文档字段命名、类型一致，便于对接与排查。</td>
+<td>各模块均设 <code>req</code>、<code>resp</code> 包，注释中标注对应文档接口路径。</td>
+</tr>
+<tr>
+<td><strong>统一响应包装</strong></td>
+<td>第三方通常有统一响应结构（code、success、msg、data），建议封装为泛型响应类。</td>
+<td>如泛型响应类含 <code>AuthData</code> 等，业务只解析 <code>data</code>。</td>
+</tr>
+<tr>
+<td><strong>错误语义不丢失</strong></td>
+<td>接口失败时应抛出明确异常或通过 ErrorDecoder 转成业务可识别的异常。</td>
+<td>某会议平台通过 Feign 的 ErrorDecoder 将响应转为业务异常。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-配置与启用方式">2.3 配置与启用方式</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+<th>本模块实践</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>按需启用</strong></td>
+<td>未使用的第三方不应加载其 Bean 与 Feign 客户端，避免多余依赖与配置。</td>
+<td>某会议模块使用 <code>@ConditionalOnProperty</code> 控制配置类生效；引入对应 starter/模块即启用。</td>
+</tr>
+<tr>
+<td><strong>自动装配</strong></td>
+<td>子模块通过 <code>META-INF/spring.factories</code> 或 <code>@EnableFeignClients(basePackages = &quot;...&quot;)</code> 暴露配置与 Feign 扫描。</td>
+<td>各子模块提供 <code>XxxAutoConfiguration</code>，集中 <code>@EnableFeignClients</code>、<code>@EnableConfigurationProperties</code>。</td>
+</tr>
+<tr>
+<td><strong>URL 与环境</strong></td>
+<td>基地址（如 <code>url</code>）可配置化，便于测试/预发/生产切换；若固定则写死在 <code>@FeignClient(url=...)</code> 亦可。</td>
+<td>当前多为固定基地址（已脱敏），后续可改为 <code>@FeignClient(url = &quot;${external.xxx.baseUrl}&quot;)</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="24-可维护性">2.4 可维护性</h3>
+<table>
+<thead>
+<tr>
+<th>要点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>接口与实现分离</strong></td>
+<td>Feign 接口只做声明；鉴权、签名、重试、日志在 Interceptor / ErrorDecoder 中统一处理。</td>
+</tr>
+<tr>
+<td><strong>日志与排查</strong></td>
+<td>在 Interceptor 中可打印请求方法、URL、头、体（注意脱敏），便于线上排查。</td>
+</tr>
+<tr>
+<td><strong>版本与兼容</strong></td>
+<td>第三方 API 升级时，仅需调整对应子模块的 DTO 与路径，不影响其他第三方。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="3-feign-在-api-对接中的优势">3. Feign 在 API 对接中的优势</h2>
+<table>
+<thead>
+<tr>
+<th>优势</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>声明式、契约清晰</strong></td>
+<td>用接口 + 注解描述 HTTP 方法、路径、参数、请求体，读代码即知调用契约，无需手写 <code>RestTemplate</code>/<code>HttpClient</code> 拼 URL 和 Body。</td>
+</tr>
+<tr>
+<td><strong>与 Spring 集成好</strong></td>
+<td><code>@FeignClient</code> 生成的实现可被直接注入，配合 <code>@EnableFeignClients</code> 包扫描即可；与配置类、拦截器、编解码器无缝配合。</td>
+</tr>
+<tr>
+<td><strong>统一拦截与扩展</strong></td>
+<td>通过 <code>RequestInterceptor</code> 统一注入鉴权头、签名、日志；通过 <code>ErrorDecoder</code> 统一将 HTTP 错误转为业务异常；不同第三方可绑定不同 configuration。</td>
+</tr>
+<tr>
+<td><strong>可插拔的编码/解码</strong></td>
+<td>支持 Jackson、Gson 等，可自定义 <code>Encoder</code>/<code>Decoder</code> 适配第三方特殊格式（如 XML、自定义 JSON 字段名）。</td>
+</tr>
+<tr>
+<td><strong>与负载均衡、服务发现结合</strong></td>
+<td>若对接内部服务，可配合 <code>name</code> + 服务发现，不写死 URL；对外部 API 则用固定 <code>url</code>，本模块采用后者。</td>
+</tr>
+<tr>
+<td><strong>测试友好</strong></td>
+<td>可对 Feign 接口做 <code>@MockBean</code> 或定义 <code>@Primary</code> 的 fallback/测试实现，方便单测与集成测试。</td>
+</tr>
+</tbody>
+</table>
+<p>本模块中：<strong>鉴权与签名</strong> 均通过 Feign 的 <code>RequestInterceptor</code> 注入，<strong>业务代码只调用接口方法</strong>，符合“对接逻辑集中、业务代码简洁”的设计。</p>
+<hr>
+<h2 id="4-每个第三方-api-作为独立-maven-模块的优势">4. 每个第三方 API 作为独立 Maven 模块的优势</h2>
+<table>
+<thead>
+<tr>
+<th>优势</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>依赖隔离</strong></td>
+<td>各第三方 SDK/依赖（如某会议 SDK、加解密库）仅在该子模块内引入，主工程或其他业务按需依赖对应 artifact，避免依赖冲突与“全家桶”引用。</td>
+</tr>
+<tr>
+<td><strong>按需引入</strong></td>
+<td>只接入会议时只依赖会议子模块 artifact，不引入企业通讯、RPA 等无关代码与配置，减小包体积与启动扫描范围。</td>
+</tr>
+<tr>
+<td><strong>职责单一、边界清晰</strong></td>
+<td>一个模块只负责一家第三方：其 Feign 接口、DTO、鉴权、签名、错误码处理都收敛在同一 artifact 内，符合单一职责与高内聚。</td>
+</tr>
+<tr>
+<td><strong>独立演进与版本</strong></td>
+<td>某第三方 API 升级或 Breaking 变更时，只需升级对应子模块版本并修改该模块内部实现，其它子模块与主应用可不受影响。</td>
+</tr>
+<tr>
+<td><strong>父 POM 统一管理版本</strong></td>
+<td>父模块在 <code>dependencyManagement</code> 中统一维护各子模块版本，主应用只关心父 BOM 或父版本。</td>
+</tr>
+<tr>
+<td><strong>配置命名空间清晰</strong></td>
+<td>配置前缀按模块划分（如 <code>external.meeting</code>、<code>external.rpa</code>），避免 key 冲突，也便于文档与运维按模块说明。</td>
+</tr>
+<tr>
+<td><strong>测试与 Mock 边界明确</strong></td>
+<td>单测或集成测试时可只引入需要的那一个 external 模块并 Mock，其它第三方完全隔离。</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="5-模块结构概览脱敏">5. 模块结构概览（脱敏）</h2>
+<p>以下为说明用结构，<strong>所有 URL、密钥、ID 均已脱敏</strong>，实际配置以各环境为准。</p>
+<h3 id="51-父模块与依赖管理">5.1 父模块与依赖管理</h3>
+<pre><code class="language-xml">&lt;!-- 父模块 artifactId 已脱敏 --&gt;
+&lt;modules&gt;
+    &lt;module&gt;meeting&lt;/module&gt;
+    &lt;module&gt;im&lt;/module&gt;
+    &lt;module&gt;rpa&lt;/module&gt;
+&lt;/modules&gt;
+&lt;dependencyManagement&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.example&lt;/groupId&gt;
+        &lt;artifactId&gt;xxx-external-meeting&lt;/artifactId&gt;
+        &lt;version&gt;${external-meeting.version}&lt;/version&gt;
+    &lt;/dependency&gt;
+    &lt;!-- 其他子模块同理 --&gt;
+&lt;/dependencyManagement&gt;
+</code></pre>
+<h3 id="52-配置项示例脱敏">5.2 配置项示例（脱敏）</h3>
+<p><strong>某 RPA 平台</strong></p>
+<pre><code class="language-yaml">external:
+  rpa:
+    access-key-id: &quot;***&quot;      # 由企业管理员创建，此处脱敏
+    access-key-secret: &quot;***&quot;  # 由企业管理员创建，此处脱敏
+</code></pre>
+<p><strong>某会议平台</strong></p>
+<pre><code class="language-yaml">external:
+  meeting:
+    app-id: &quot;***&quot;     # 企业 ID，脱敏
+    sdk-id: &quot;***&quot;     # 应用 SdkId，脱敏
+    secret-id: &quot;***&quot;  # 应用 SecretId，脱敏
+    secret-key: &quot;***&quot; # 应用密钥，脱敏
+</code></pre>
+<p><strong>某企业通讯平台回调</strong></p>
+<pre><code class="language-yaml">external:
+  im:
+    callback:
+      token: &quot;***&quot;  # 回调校验 Token，脱敏
+      aes: &quot;***&quot;    # 消息加解密密钥，脱敏
+      corp-id: &quot;***&quot; # 企业 ID，脱敏
+</code></pre>
+<h3 id="53-feign-客户端与基地址脱敏">5.3 Feign 客户端与基地址（脱敏）</h3>
+<table>
+<thead>
+<tr>
+<th>子模块</th>
+<th>Feign 客户端名</th>
+<th>基地址（脱敏）</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>某 RPA 平台</td>
+<td><code>xxx-rpa-auth-client</code></td>
+<td><code>https://api.example.com/oapi/</code></td>
+<td>鉴权：GET token/create</td>
+</tr>
+<tr>
+<td>某 RPA 平台</td>
+<td><code>xxx-rpa-client</code></td>
+<td><code>https://api.example.com/oapi/</code></td>
+<td>业务：POST dispatch/v2/job/start、retry</td>
+</tr>
+<tr>
+<td>某会议平台</td>
+<td><code>xxx-meeting-client</code></td>
+<td><code>https://api.meeting.example.com</code></td>
+<td>会议：/v1/meetings 等</td>
+</tr>
+</tbody>
+</table>
+<p>上述 URL 仅为示例，实际以各第三方官方文档为准；生产环境建议通过配置中心或环境变量注入，避免硬编码。</p>
+<h3 id="54-鉴权与拦截流程逻辑说明">5.4 鉴权与拦截流程（逻辑说明）</h3>
+<ul>
+<li><strong>某 RPA 平台</strong>：
+<ul>
+<li>鉴权 Feign 使用 <code>accessKeyId</code> + <code>accessKeySecret</code> 请求 token 接口。</li>
+<li>业务 Feign 通过拦截器从 Token 服务取缓存的 <code>accessToken</code>，请求头注入 <code>Authorization: Bearer &lt;token&gt;</code>。</li>
+<li>Token 缓存在 Redis，key 可配置（如 <code>xxx:auth:token</code>），过期时间 = 接口返回 <code>expiresIn - 60</code> 秒。</li>
+</ul>
+</li>
+<li><strong>某会议平台</strong>：
+<ul>
+<li>无独立 Token 接口，每次请求在 Feign 拦截器中注入 AppId、SdkId、Key、Timestamp、Nonce，并按官方规则计算签名。</li>
+</ul>
+</li>
+<li><strong>某企业通讯平台</strong>：
+<ul>
+<li>以服务端回调为主（接收事件、解密），配置 token/aes/corpId 用于校验与解密，不涉及 Feign 出站鉴权示例（仅说明配置用途）。</li>
+</ul>
+</li>
+</ul>
+<h3 id="55-请求响应示例脱敏">5.5 请求/响应示例（脱敏）</h3>
+<p><strong>某 RPA 平台鉴权响应（结构示例）</strong></p>
+<pre><code class="language-json">{
+  &quot;code&quot;: 200,
+  &quot;success&quot;: true,
+  &quot;msg&quot;: &quot;ok&quot;,
+  &quot;data&quot;: {
+    &quot;accessToken&quot;: &quot;***&quot;,
+    &quot;expiresIn&quot;: 7199
+  }
+}
+</code></pre>
+<p><strong>某会议取消请求（结构示例）</strong></p>
+<pre><code class="language-json">POST /v1/meetings/{meetingId}/cancel
+{
+  &quot;userid&quot;: &quot;***&quot;,
+  &quot;instanceid&quot;: 1,
+  &quot;reason_code&quot;: 1,
+  &quot;reason_detail&quot;: &quot;取消会议&quot;
+}
+</code></pre>
+<p>以上字段名与结构与实际对接一致，具体取值均已脱敏。</p>
+<hr>
+<h2 id="6-使用方式简述">6. 使用方式简述</h2>
+<ol>
+<li><strong>引入依赖</strong>：在需要对接某第三方的应用中引入对应子模块，例如：</li>
+</ol>
+<pre><code class="language-xml"> &lt;dependency&gt;
+     &lt;groupId&gt;com.example&lt;/groupId&gt;
+     &lt;artifactId&gt;xxx-external-rpa&lt;/artifactId&gt;
+ &lt;/dependency&gt;
+</code></pre>
+<ol start="2">
+<li><strong>配置</strong>：在 <code>application.yml</code> 中配置对应前缀下的密钥/ID（见 5.2，务必使用配置中心或环境变量，不要提交明文）。</li>
+<li><strong>注入使用</strong>：注入对应 Feign 接口或封装好的 Service，直接调用接口方法即可；鉴权与签名由各模块自动完成。</li>
+</ol>
+<hr>
+<h2 id="7-注意事项">7. 注意事项</h2>
+<ul>
+<li><strong>安全</strong>：所有密钥、Token、企业 ID 等均需脱敏存储与传输；文档中的 groupId、artifactId、第三方 API 名称（如某会议平台、某 RPA 平台、某企业通讯平台）及配置前缀均为脱敏示例，实际值不得写入对外文档或代码仓库。</li>
+<li><strong>兼容性</strong>：第三方 API 版本变更时请优先在对应子模块内完成适配，并更新该模块的 README 或接口注释。</li>
+<li><strong>日志</strong>：Interceptor 中若打印请求体或响应体，须做脱敏与长度截断，避免敏感信息进入日志。</li>
+</ul>
+<p> </p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[比较模块（Compare）-技术分享]]></title>
+        <id>https://da1v4d.github.io/post/bi-jiao-mo-kuai-compare/</id>
+        <link href="https://da1v4d.github.io/post/bi-jiao-mo-kuai-compare/">
+        </link>
+        <updated>2026-03-05T06:44:33.000Z</updated>
+        <summary type="html"><![CDATA[<h2 id="1-模块介绍">1. 模块介绍</h2>
+<p>比较模块提供了<strong>强大的对象差异对比能力</strong>，能够智能识别并展示两个对象之间的属性差异。该模块通过<strong>注解驱动</strong>的方式，支持自定义比较规则、字段映射和差异格式化，适用于数据审计、变更日志记录、版本对比等场景。</p>
+]]></summary>
+        <content type="html"><![CDATA[<h2 id="1-模块介绍">1. 模块介绍</h2>
+<p>比较模块提供了<strong>强大的对象差异对比能力</strong>，能够智能识别并展示两个对象之间的属性差异。该模块通过<strong>注解驱动</strong>的方式，支持自定义比较规则、字段映射和差异格式化，适用于数据审计、变更日志记录、版本对比等场景。</p>
+<!-- more -->
+<hr>
+<h2 id="2-核心优势为什么选择本模块">2. 核心优势（为什么选择本模块）</h2>
+<table>
+<thead>
+<tr>
+<th>优势</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>零侵入业务逻辑</strong></td>
+<td>仅通过注解标记参与比较的字段，无需在业务代码中手写逐字段比较，避免重复、易错的 if-else 判断。</td>
+</tr>
+<tr>
+<td><strong>可读可维护的差异结果</strong></td>
+<td>输出统一的「修改前 → 修改后」格式，并支持字段中文描述与枚举/映射后的可读值，便于直接写入操作日志或展示给用户。</td>
+</tr>
+<tr>
+<td><strong>灵活的映射与忽略</strong></td>
+<td>支持字符串规则、枚举规则、<code>@CompareMapping</code> 注解三种映射方式；支持按字段忽略、按类忽略，并默认忽略常见审计字段（createTime/createUser/modifyTime/modifyUser）。</td>
+</tr>
+<tr>
+<td><strong>列表与集合比较</strong></td>
+<td>除单对象比较外，支持按索引顺序比较列表、按映射键（如 ID）比较集合，满足「列表前后快照」类审计需求。</td>
+</tr>
+<tr>
+<td><strong>国际化友好</strong></td>
+<td>与 Spring 消息源集成，字段描述支持 i18n key，可根据请求语言输出多语言比较结果。</td>
+</tr>
+<tr>
+<td><strong>性能友好</strong></td>
+<td>类级别 CompareCore 实例池化、字段信息缓存，同一类型重复比较时避免重复反射与实例创建。</td>
+</tr>
+<tr>
+<td><strong>与 Spring Boot 无缝集成</strong></td>
+<td>提供自动配置与 <code>CompareProperties</code>，引入依赖即可使用，支持通过配置文件定制主语言与资源前缀。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>典型适用场景</strong>：操作审计日志、数据变更记录、配置/版本 diff 展示、后台「修改前/修改后」对比等。若你当前通过手写字段比较或拼字符串来记录变更，本模块可显著减少样板代码并统一输出格式。</p>
+<p><strong>与手写比较对比</strong>：手写需对每个字段判空、equals、拼字符串，易漏字段、格式不统一、枚举码值需自行转文案；本模块通过注解声明参与比较的字段与映射规则，一次配置、多处复用，输出格式统一且支持 i18n，更适合中大型项目中的审计与日志需求。</p>
+<hr>
+<h2 id="3-核心功能">3. 核心功能</h2>
+<ul>
+<li><strong>对象属性差异对比</strong>：精确比较两个对象的属性差异，并格式化为可读的「修改前 → 修改后」描述。</li>
+<li><strong>列表与集合比较</strong>：支持按索引顺序比较列表、按映射键（如 ID）比较集合，适配有序/无序两种场景。</li>
+<li><strong>多种字段值映射</strong>：支持字符串规则（<code>ruleStr</code>）、枚举规则（<code>ruleEnum</code>）、注解映射（<code>@CompareMapping</code>），将码值转为业务可读文案。</li>
+<li><strong>灵活的忽略机制</strong>：支持类/字段级 <code>@CompareIgnore</code>、方法级忽略列表，并默认忽略常见审计字段。</li>
+<li><strong>国际化</strong>：字段描述支持 i18n key，结合请求语言输出多语言比较结果。</li>
+<li><strong>性能优化</strong>：CompareCore 实例池化、字段信息缓存，减少重复反射与对象创建。</li>
+</ul>
+<h2 id="4-核心类与接口">4. 核心类与接口</h2>
+<h3 id="41-工具类">4.1 工具类</h3>
+<h4 id="compareutil">CompareUtil</h4>
+<p>主要的工具类，提供了获取比较实例和核心比较功能。采用单例模式设计，内部使用缓存池存储比较实例。</p>
+<pre><code class="language-java">// 获取指定类的比较实例
+CompareCore compareCore = CompareUtil.forClazz(User.class);
+</code></pre>
+<h4 id="comparecore">CompareCore</h4>
+<p>由 <code>CompareUtil.forClazz(Class)</code> 返回的核心比较实现类，提供以下方法：</p>
+<ul>
+<li><code>compare(T source, T target)</code>: 比较两个对象的差异</li>
+<li><code>compareList(List&lt;T&gt; sourceList, List&lt;T&gt; targetList)</code>: 按索引顺序比较列表</li>
+<li><code>compareArr(Collection&lt;T&gt; sourceList, Collection&lt;T&gt; targetList, Function&lt;T, ?&gt; mappingRule)</code>: 基于映射规则比较集合</li>
+</ul>
+<h4 id="comparenode">CompareNode</h4>
+<p>用于存储比较过程中的字段信息，包含字段名、字段值和字段描述。</p>
+<pre><code class="language-java">public class CompareNode {
+    private String fieldKey;    // 字段名
+    private Object fieldValue;  // 字段值
+    private String fieldDesc;   // 字段描述
+}
+</code></pre>
+<h3 id="42-注解">4.2 注解</h3>
+<h4 id="compareproperty">@CompareProperty</h4>
+<p>标记需要进行比较的字段，支持配置字段描述和多种映射规则。</p>
+<pre><code class="language-java">@Target({ElementType.METHOD, ElementType.FIELD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface CompareProperty {
+    String value() default &quot;&quot;;  // 字段描述（可填 i18n key）
+    CompareRule ruleType() default CompareRule.STR;  // 映射规则类型
+    String[] ruleStr() default &quot;&quot;;  // 字符串映射规则（STR）
+    Class&lt;? extends Enum&lt;? extends Function&gt;&gt; ruleEnum() default DefaultRuleEnum.class;  // 枚举映射规则（ENUM）
+    CompareMapping[] ruleMappings() default {};  // 注解映射规则（MAPPING）
+}
+</code></pre>
+<h4 id="compareignore">@CompareIgnore</h4>
+<p>标记需要忽略比较的类或字段，被标记的将不参与差异计算。</p>
+<pre><code class="language-java">@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.TYPE, ElementType.METHOD})
+public @interface CompareIgnore {
+}
+</code></pre>
+<h4 id="comparemapping">@CompareMapping</h4>
+<p>与 <code>@CompareProperty(ruleType = CompareRule.MAPPING, ruleMappings = {...})</code> 配合使用，声明「源值 → 目标展示值」的映射，无需单独写枚举类。</p>
+<pre><code class="language-java">public @interface CompareMapping {
+    String source();  // 源值（如 &quot;0&quot;）
+    String target();  // 展示值（如 &quot;禁用&quot;）
+}
+</code></pre>
+<h3 id="43-枚举">4.3 枚举</h3>
+<h4 id="comparerule">CompareRule</h4>
+<p>定义字段映射规则类型：</p>
+<pre><code class="language-java">public enum CompareRule {
+    STR,     // 字符串规则，配合 ruleStr
+    ENUM,    // 枚举规则，配合 ruleEnum
+    MAPPING  // 注解映射规则，配合 ruleMappings
+}
+</code></pre>
+<h2 id="5-快速开始">5. 快速开始</h2>
+<h3 id="51-依赖与集成">5.1 依赖与集成</h3>
+<p>在 Spring Boot 项目中引入本模块依赖后，自动配置会生效；可通过 <code>application.yml</code> 或 <code>application.properties</code> 可选配置：</p>
+<pre><code class="language-yaml">spring:
+  ai:
+    framework:
+      compare:
+        primary-language: zh                    # 主语言，未从请求头解析时使用
+        message-source-basename: compare       # 国际化资源文件前缀
+</code></pre>
+<h3 id="52-基础配置">5.2 基础配置</h3>
+<p>在需要比较的类的字段上添加 <code>@CompareProperty</code> 注解：</p>
+<pre><code class="language-java">@Data
+public class User {
+    @CompareProperty(&quot;用户ID&quot;)
+    private Long id;
+    
+    @CompareProperty(&quot;用户名&quot;)
+    private String username;
+    
+    @CompareProperty(&quot;状态&quot;)
+    private Integer status;
+    
+    // 不需要比较的字段不加注解
+    private Date createTime;
+}
+</code></pre>
+<h3 id="53-对象比较示例">5.3 对象比较示例</h3>
+<pre><code class="language-java">// 创建对象
+User oldUser = new User(1L, &quot;张三&quot;, 1);
+User newUser = new User(1L, &quot;李四&quot;, 0);
+
+// 获取比较实例并执行比较
+CompareCore compareCore = CompareUtil.forClazz(User.class);
+String diffResult = compareCore.compare(oldUser, newUser);
+
+// 输出结果：
+// [用户名] 修改前:张三 ——&gt; 修改后:李四
+// [状态] 修改前:1 ——&gt; 修改后:0
+System.out.println(diffResult);
+</code></pre>
+<h2 id="6-高级功能">6. 高级功能</h2>
+<h3 id="61-字段值映射">6.1 字段值映射</h3>
+<h4 id="611-字符串映射规则">6.1.1 字符串映射规则</h4>
+<p>通过<code>ruleStr</code>参数配置简单的键值对映射，规则基于字符<code>-&gt;</code>进行键值分隔：</p>
+<pre><code class="language-java">@CompareProperty(
+    value = &quot;状态&quot;,
+    ruleStr = {
+        &quot;0-&gt;禁用&quot;,
+        &quot;1-&gt;启用&quot;
+    }
+)
+private Integer status;
+</code></pre>
+<ul>
+<li>格式说明：<code>原始值-&gt;映射后的值</code>，其中<code>-&gt;</code>是固定的分隔符</li>
+<li>比较模块会自动解析这些规则，并在比较结果中显示映射后的值</li>
+</ul>
+<p>比较结果将显示映射后的值：</p>
+<pre><code>[状态] 修改前:启用 ——&gt; 修改后:禁用
+</code></pre>
+<h4 id="612-ruletype-属性使用说明">6.1.2 ruleType 属性使用说明</h4>
+<p><code>ruleType</code> 用于指定字段值的映射规则类型，支持三种规则：</p>
+<ul>
+<li><code>CompareRule.STR</code>：字符串映射规则（默认），与 <code>ruleStr</code> 配合使用。</li>
+<li><code>CompareRule.ENUM</code>：枚举映射规则，与 <code>ruleEnum</code> 配合使用。</li>
+<li><code>CompareRule.MAPPING</code>：注解映射规则，与 <code>ruleMappings</code>（<code>@CompareMapping</code>）配合使用，无需单独写枚举类。</li>
+</ul>
+<p>使用规则说明：</p>
+<ol>
+<li>不指定 <code>ruleType</code> 时，默认为 <code>CompareRule.STR</code>。</li>
+<li>配置了 <code>ruleStr</code> 时，会按字符串规则处理（可省略显式写 <code>ruleType=STR</code>）。</li>
+<li>使用枚举或注解映射时，建议显式设置 <code>ruleType=ENUM</code> 或 <code>ruleType=MAPPING</code> 以提升可读性。</li>
+<li>优先级：若同时配置多种规则，按实现约定以 STR &gt; MAPPING &gt; ENUM 等顺序生效，建议单字段只选一种方式。</li>
+</ol>
+<p>示例：</p>
+<pre><code class="language-java">// 明确指定使用字符串映射规则
+@CompareProperty(
+    value = &quot;状态&quot;,
+    ruleType = CompareRule.STR,
+    ruleStr = {
+        &quot;0-&gt;禁用&quot;,
+        &quot;1-&gt;启用&quot;
+    }
+)
+private Integer status;
+
+// 明确指定使用枚举映射规则
+@CompareProperty(
+    value = &quot;状态&quot;,
+    ruleType = CompareRule.ENUM,
+    ruleEnum = StatusEnum.class
+)
+private Integer status;
+</code></pre>
+<h4 id="613-枚举映射规则">6.1.3 枚举映射规则</h4>
+<p>通过实现<code>Function</code>接口的枚举类实现更复杂的映射：</p>
+<ol>
+<li>定义映射枚举类：</li>
+</ol>
+<pre><code class="language-java">@Getter
+@AllArgsConstructor
+public enum StatusEnum implements Function&lt;Object, String&gt; {
+    DISABLED(0, &quot;禁用&quot;),
+    ENABLED(1, &quot;启用&quot;);
+    
+    private Integer code;
+    private String desc;
+    
+    public static StatusEnum getByCode(Integer code) {
+        for (StatusEnum value : StatusEnum.values()) {
+            if (value.code.equals(code)) {
+                return value;
+            }
+        }
+        return null;
+    }
+    
+    @Override
+    public String apply(Object o) {
+        return getByCode((Integer) o).getDesc();
+    }
+}
+</code></pre>
+<ol start="2">
+<li>在注解中使用枚举映射：</li>
+</ol>
+<pre><code class="language-java">@CompareProperty(
+    value = &quot;状态&quot;,
+    ruleType = CompareRule.ENUM,
+    ruleEnum = StatusEnum.class
+)
+private Integer status;
+</code></pre>
+<h4 id="614-注解映射规则comparemapping">6.1.4 注解映射规则（@CompareMapping）</h4>
+<p>不需要单独建枚举类时，可直接在注解上写「源值 → 展示值」：</p>
+<pre><code class="language-java">@CompareProperty(
+    value = &quot;状态&quot;,
+    ruleType = CompareRule.MAPPING,
+    ruleMappings = {
+        @CompareMapping(source = &quot;0&quot;, target = &quot;禁用&quot;),
+        @CompareMapping(source = &quot;1&quot;, target = &quot;启用&quot;)
+    }
+)
+private Integer status;
+</code></pre>
+<p>比较结果会显示「禁用」「启用」等目标文案，便于日志与前端展示。</p>
+<h3 id="62-列表比较">6.2 列表比较</h3>
+<h4 id="621-按索引比较列表">6.2.1 按索引比较列表</h4>
+<p>适用于顺序敏感的列表比较：</p>
+<pre><code class="language-java">List&lt;User&gt; oldList = Arrays.asList(new User(1L, &quot;张三&quot;, 1));
+List&lt;User&gt; newList = Arrays.asList(new User(1L, &quot;李四&quot;, 0));
+
+String diffResult = CompareUtil.forClazz(User.class).compareList(oldList, newList);
+</code></pre>
+<h4 id="622-基于映射规则比较集合">6.2.2 基于映射规则比较集合</h4>
+<p>适用于无序集合比较，通过映射规则确定元素对应关系：</p>
+<pre><code class="language-java">List&lt;User&gt; oldList = Arrays.asList(new User(1L, &quot;张三&quot;, 1));
+List&lt;User&gt; newList = Arrays.asList(new User(1L, &quot;李四&quot;, 0));
+
+// 以id作为映射规则进行比较
+String diffResult = CompareUtil.forClazz(User.class).compareArr(
+    oldList, newList, User::getId
+);
+</code></pre>
+<h3 id="63-忽略特定字段">6.3 忽略特定字段</h3>
+<p>比较时可以指定忽略某些字段：</p>
+<pre><code class="language-java">List&lt;String&gt; ignoreFields = Arrays.asList(&quot;status&quot;, &quot;createTime&quot;);
+String diffResult = CompareUtil.forClazz(User.class).compare(
+    oldUser, newUser, ignoreFields
+);
+</code></pre>
+<p>注意：模块默认会忽略以下审计字段，无需手动配置：</p>
+<ul>
+<li>createTime</li>
+<li>createUser</li>
+<li>modifyTime</li>
+<li>modifyUser</li>
+</ul>
+<h2 id="7-国际化可选">7. 国际化（可选）</h2>
+<ul>
+<li>在 <code>@CompareProperty</code> 的 <code>value</code> 中填写 i18n 的 key（如 <code>user.status</code>），模块会通过 <code>CompareI18n</code> 从配置的 MessageSource 中取当前语言文案。</li>
+<li>请求头 <code>Accept-Language</code> 或配置项 <code>spring.ai.framework.compare.primary-language</code> 决定语言；资源文件前缀由 <code>spring.ai.framework.compare.message-source-basename</code> 指定（默认 <code>compare</code>），如 <code>compare_zh.properties</code>、<code>compare_en.properties</code>。</li>
+<li>未配置 i18n 时，可直接在 <code>value</code> 中写中文描述，不影响使用。</li>
+</ul>
+<h2 id="8-性能优化">8. 性能优化</h2>
+<p>该模块通过以下机制优化性能：</p>
+<ol>
+<li><strong>实例缓存</strong>：使用<code>INSTANCE_POOL</code>缓存<code>CompareCore</code>实例</li>
+<li><strong>字段缓存</strong>：使用<code>CLAZZ_FIELD_CACHE</code>缓存类的字段信息</li>
+<li><strong>懒加载</strong>：仅在需要时才解析字段信息</li>
+</ol>
+<h2 id="9-使用注意事项">9. 使用注意事项</h2>
+<ol>
+<li>
+<p><strong>类与字段要求</strong>：</p>
+<ul>
+<li>被比较的类需要有默认构造函数（用于创建空对象）</li>
+<li>需要比较的字段必须添加<code>@CompareProperty</code>注解</li>
+<li>嵌套对象暂不支持递归比较，只支持JDK基础类型</li>
+</ul>
+</li>
+<li>
+<p><strong>异常处理</strong>：</p>
+<ul>
+<li>当比较的两个对象类型不匹配时，会抛出<code>IllegalArgumentException</code></li>
+<li>枚举映射规则配置不正确时可能抛出异常</li>
+</ul>
+</li>
+<li>
+<p><strong>性能考虑</strong>：</p>
+<ul>
+<li>对于大型对象或复杂集合，建议只比较必要的字段</li>
+<li>频繁比较相同类型对象时，实例缓存会自动提高性能</li>
+</ul>
+</li>
+</ol>
+<h2 id="10-完整示例">10. 完整示例</h2>
+<p>下面是一个完整的使用示例：</p>
+<pre><code class="language-java">// 1. 定义比较规则枚举
+@Getter
+@AllArgsConstructor
+public enum StatusEnum implements Function&lt;Object, String&gt; {
+    DISABLED(0, &quot;禁用&quot;),
+    ENABLED(1, &quot;启用&quot;);
+    
+    private Integer code;
+    private String desc;
+    
+    public static StatusEnum getByCode(Integer code) {
+        for (StatusEnum value : StatusEnum.values()) {
+            if (value.code.equals(code)) {
+                return value;
+            }
+        }
+        return null;
+    }
+    
+    @Override
+    public String apply(Object o) {
+        return getByCode((Integer) o).getDesc();
+    }
+}
+
+// 2. 定义需要比较的类
+@Data
+public class User {
+    @CompareProperty(&quot;用户ID&quot;)
+    private Long id;
+    
+    @CompareProperty(&quot;用户名&quot;)
+    private String username;
+    
+    @CompareProperty(
+        value = &quot;状态&quot;,
+        ruleType = CompareRule.ENUM,
+        ruleEnum = StatusEnum.class
+    )
+    private Integer status;
+    
+    @CompareProperty(
+        value = &quot;类型&quot;,
+        ruleStr = {
+            &quot;0-&gt;普通用户&quot;,
+            &quot;1-&gt;管理员&quot;
+        }
+    )
+    private Integer type;
+    
+    // 不参与比较的字段
+    private Date createTime;
+}
+
+// 3. 执行比较
+public class CompareDemo {
+    public static void main(String[] args) {
+        // 创建对象
+        User oldUser = new User(1L, &quot;张三&quot;, 1, 0);
+        User newUser = new User(1L, &quot;李四&quot;, 0, 1);
+        
+        // 执行比较
+        String diffResult = CompareUtil.forClazz(User.class).compare(oldUser, newUser);
+        
+        // 输出结果
+        System.out.println(&quot;对象差异比较结果：&quot;);
+        System.out.println(diffResult);
+    }
+}
+</code></pre>
+<p>输出结果：</p>
+<pre><code>对象差异比较结果：
+[用户名] 修改前:张三 ——&gt; 修改后:李四
+[状态] 修改前:启用 ——&gt; 修改后:禁用
+[类型] 修改前:普通用户 ——&gt; 修改后:管理员
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Maven 依赖管理总结]]></title>
+        <id>https://da1v4d.github.io/post/maven-yi-lai-guan-li-zong-jie/</id>
+        <link href="https://da1v4d.github.io/post/maven-yi-lai-guan-li-zong-jie/">
+        </link>
+        <updated>2026-03-05T06:08:32.000Z</updated>
+        <summary type="html"><![CDATA[<p>本文档基于对项目根目录、<code>dependencies</code> 与 <code>framework</code> 下各模块 <code>pom.xml</code> 的阅读，总结<strong>外部依赖统一管理</strong>、<strong>内部模块依赖管理</strong>的实践方式及其优势。</p>
+]]></summary>
+        <content type="html"><![CDATA[<p>本文档基于对项目根目录、<code>dependencies</code> 与 <code>framework</code> 下各模块 <code>pom.xml</code> 的阅读，总结<strong>外部依赖统一管理</strong>、<strong>内部模块依赖管理</strong>的实践方式及其优势。</p>
+<!-- more -->
+<hr>
+<h2 id="一-如何统一管理外部依赖">一、如何统一管理外部依赖</h2>
+<h3 id="11-总体思路">1.1 总体思路</h3>
+<p>外部依赖（第三方库）通过<strong>独立 BOM 模块 + 根 POM 的 import 作用域</strong>统一管理版本，子模块只声明 <code>groupId</code>、<code>artifactId</code>，不写 <code>version</code>。</p>
+<h3 id="12-具体做法">1.2 具体做法</h3>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>根 POM</td>
+<td>根目录 <code>pom.xml</code>（主工程 artifactId）</td>
+<td>在 <code>&lt;dependencyManagement&gt;</code> 中通过 <code>import</code> 引入 BOM</td>
+</tr>
+<tr>
+<td>外部 BOM</td>
+<td><code>dependencies/pom.xml</code>（如 <code>&lt;your-project&gt;-dependencies</code>）</td>
+<td>集中定义外部依赖的版本与声明</td>
+</tr>
+</tbody>
+</table>
+<p><strong>根 POM 引入方式：</strong></p>
+<pre><code class="language-xml">&lt;dependencyManagement&gt;
+  &lt;dependencies&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;&lt;your-groupId&gt;&lt;/groupId&gt;
+      &lt;artifactId&gt;&lt;your-project&gt;-dependencies&lt;/artifactId&gt;
+      &lt;version&gt;${dependency.version}&lt;/version&gt;
+      &lt;type&gt;pom&lt;/type&gt;
+      &lt;scope&gt;import&lt;/scope&gt;
+    &lt;/dependency&gt;
+  &lt;/dependencies&gt;
+&lt;/dependencyManagement&gt;
+</code></pre>
+<p><strong>BOM 模块（dependencies）内：</strong></p>
+<ol>
+<li>
+<p><strong>版本集中到 <code>&lt;properties&gt;</code></strong><br>
+所有外部依赖的版本号用属性表示，例如：</p>
+<ul>
+<li><code>spring-boot.version</code>、<code>spring-cloud.version</code>、<code>hutool-all.version</code></li>
+<li><code>mybatis-plus.version</code>、<code>druid.version</code>、<code>redisson.version</code></li>
+<li>等等</li>
+</ul>
+</li>
+<li>
+<p><strong>在 <code>&lt;dependencyManagement&gt;</code> 中声明依赖（不放入 <code>&lt;dependencies&gt;</code>）</strong></p>
+<ul>
+<li>使用 <code>properties</code> 中的变量写 <code>&lt;version&gt;</code></li>
+<li>需要时对上游 BOM 使用 <code>import</code>（如 Spring Boot、Spring Cloud、Spring Cloud Alibaba）</li>
+<li>需要时使用 <code>&lt;exclusions&gt;</code> 排除传递依赖，再单独声明要使用的版本（如 knife4j 与 spring-plugin）</li>
+</ul>
+</li>
+<li>
+<p><strong>子模块引用方式</strong><br>
+framework 下各模块在 <code>&lt;dependencies&gt;</code> 里只写：</p>
+<pre><code class="language-xml">&lt;dependency&gt;
+  &lt;groupId&gt;cn.hutool&lt;/groupId&gt;
+  &lt;artifactId&gt;hutool-all&lt;/artifactId&gt;
+&lt;/dependency&gt;
+</code></pre>
+<p>不写 <code>&lt;version&gt;</code>，版本由根 POM 继承到的 <code>dependencyManagement</code>（来自外部 BOM 模块）决定。</p>
+</li>
+</ol>
+<h3 id="13-要点小结">1.3 要点小结</h3>
+<ul>
+<li><strong>单一事实来源</strong>：所有外部依赖版本只在 <code>dependencies/pom.xml</code> 的 properties 与 dependencyManagement 中维护。</li>
+<li><strong>利用上游 BOM</strong>：通过 <code>import</code> Spring Boot / Spring Cloud / Spring Cloud Alibaba 等 BOM，减少重复声明并保持与生态一致。</li>
+<li><strong>覆盖与排除</strong>：对个别依赖（如 spring-plugin）可先排除再在 BOM 中显式指定版本，避免传递依赖冲突。</li>
+</ul>
+<hr>
+<h2 id="二-如何管理内部模块依赖">二、如何管理内部模块依赖</h2>
+<h3 id="21-总体思路">2.1 总体思路</h3>
+<p>内部模块（framework 下的 base、common、web、biz-*、starters 等）的版本与依赖关系由 <strong>framework 父 POM</strong> 的 <code>&lt;dependencyManagement&gt;</code> 统一管理，子模块通过 parent 继承后只声明“要谁”、不写版本。</p>
+<h3 id="22-具体做法">2.2 具体做法</h3>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>根 POM</td>
+<td>根目录 <code>pom.xml</code></td>
+<td>父 POM，且 import 了外部 BOM</td>
+</tr>
+<tr>
+<td>内部父 POM</td>
+<td><code>framework/pom.xml</code>（如 <code>&lt;your-project&gt;-framework</code>）</td>
+<td>定义内部各模块的版本 + 在 dependencyManagement 中声明所有内部 artifact</td>
+</tr>
+<tr>
+<td>业务/功能父 POM</td>
+<td>如 <code>framework/biz/pom.xml</code>、<code>framework/starters/pom.xml</code></td>
+<td>聚合子模块，子模块 parent 指向它们或 framework</td>
+</tr>
+</tbody>
+</table>
+<p><strong>framework/pom.xml 中：</strong></p>
+<ol>
+<li>
+<p><strong>内部版本统一用 properties：</strong></p>
+<pre><code class="language-xml">&lt;base.version&gt;1.0&lt;/base.version&gt;
+&lt;common.version&gt;1.0&lt;/common.version&gt;
+&lt;biz-xxx.version&gt;1.0&lt;/biz-xxx.version&gt;
+&lt;!-- ... 各 biz、starters 等 --&gt;
+</code></pre>
+</li>
+<li>
+<p><strong>在 <code>&lt;dependencyManagement&gt;</code> 中声明所有内部模块</strong>（仅声明，不引入到当前构建）：</p>
+<pre><code class="language-xml">&lt;dependency&gt;
+  &lt;groupId&gt;&lt;your-groupId&gt;&lt;/groupId&gt;
+  &lt;artifactId&gt;&lt;your-project&gt;-framework-base&lt;/artifactId&gt;
+  &lt;version&gt;${base.version}&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;&lt;your-groupId&gt;&lt;/groupId&gt;
+  &lt;artifactId&gt;&lt;your-project&gt;-framework-common&lt;/artifactId&gt;
+  &lt;version&gt;${common.version}&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- ... 其他 framework 子模块 --&gt;
+</code></pre>
+</li>
+<li>
+<p><strong>子模块引用方式</strong><br>
+例如 <code>framework/common/pom.xml</code>、<code>framework/web/pom.xml</code>、<code>framework/biz/xxx/pom.xml</code> 等：</p>
+<ul>
+<li>parent 指向内部父 POM（或 biz/starters 等中间父 POM，它们再继承 framework）。</li>
+<li>需要依赖其他内部模块时，只写 groupId + artifactId，不写 version：</li>
+</ul>
+<pre><code class="language-xml">&lt;dependency&gt;
+  &lt;groupId&gt;&lt;your-groupId&gt;&lt;/groupId&gt;
+  &lt;artifactId&gt;&lt;your-project&gt;-framework-common&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;&lt;your-groupId&gt;&lt;/groupId&gt;
+  &lt;artifactId&gt;&lt;your-project&gt;-framework-web&lt;/artifactId&gt;
+&lt;/dependency&gt;
+</code></pre>
+</li>
+</ol>
+<h3 id="23-继承与聚合关系">2.3 继承与聚合关系</h3>
+<ul>
+<li><strong>继承</strong>：framework 子模块的 <code>&lt;parent&gt;</code> 为内部父 POM（或 framework-biz、framework-starters 等中间父 POM），因此继承到 framework 的 dependencyManagement 和 properties。</li>
+<li><strong>聚合</strong>：根 POM 的 <code>&lt;modules&gt;</code> 包含 <code>framework</code>、<code>dependencies</code> 等；<code>framework/pom.xml</code> 的 <code>&lt;modules&gt;</code> 包含 base、common、web、biz、starters 等；biz、starters 再各自聚合其子模块。</li>
+<li>因此，<strong>内部模块的版本与依赖关系只在 framework 的 dependencyManagement 中维护一处</strong>，子模块只声明“依赖谁”。</li>
+</ul>
+<h3 id="24-要点小结">2.4 要点小结</h3>
+<ul>
+<li><strong>内部也单一事实来源</strong>：内部 artifact 的版本和“是否在 dependencyManagement 中声明”仅由 framework 父 POM 决定。</li>
+<li><strong>子模块不写内部依赖的 version</strong>：避免在多个子模块中重复写 1.0 或不一致的版本。</li>
+<li><strong>可选依赖与 scope</strong>：子模块可在引用内部依赖时使用 <code>&lt;optional&gt;true&lt;/optional&gt;</code> 或 <code>&lt;scope&gt;</code>，版本仍由父 POM 统一管理。</li>
+</ul>
+<hr>
+<h2 id="三-依赖在这种方式管理后的优势">三、依赖在这种方式管理后的优势</h2>
+<h3 id="31-版本统一-升级简单">3.1 版本统一、升级简单</h3>
+<ul>
+<li><strong>外部</strong>：所有第三方库版本集中在 <code>dependencies/pom.xml</code>，升级时只改一处（或少量 properties），全项目生效，避免同一依赖多版本并存。</li>
+<li><strong>内部</strong>：所有 framework 模块版本集中在 <code>framework/pom.xml</code> 的 properties 与 dependencyManagement 中，发版或升级时只改父 POM，子模块无需改 version。</li>
+</ul>
+<h3 id="32-依赖关系清晰-易维护">3.2 依赖关系清晰、易维护</h3>
+<ul>
+<li>外部依赖清单与版本在 BOM 中一目了然；内部模块的“谁被谁依赖”在 framework 的 dependencyManagement 中有完整列表。</li>
+<li>新增内部模块时：在 framework 的 dependencyManagement 中声明一次，各子模块按需引用且不写版本，避免遗漏或写错版本。</li>
+</ul>
+<h3 id="33-减少重复与错误">3.3 减少重复与错误</h3>
+<ul>
+<li>子模块的 <code>&lt;dependencies&gt;</code> 中不写外部/内部依赖的 version，减少重复和手误带来的版本不一致。</li>
+<li>冲突与排除在 BOM 层统一处理（如 knife4j 与 spring-plugin），所有引用该依赖的模块行为一致。</li>
+</ul>
+<h3 id="34-与-maven-机制一致">3.4 与 Maven 机制一致</h3>
+<ul>
+<li>使用 <code>&lt;dependencyManagement&gt;</code> + BOM <code>import</code> 是 Maven 和 Spring 生态的常见做法，便于团队理解和与现有工具（IDE、依赖分析插件）配合。</li>
+<li>父子 POM 继承使“根 POM → dependencies BOM + framework 父 POM → 各子模块”的依赖传递路径清晰。</li>
+</ul>
+<h3 id="35-职责分离">3.5 职责分离</h3>
+<ul>
+<li><strong>dependencies</strong>：只关心“用什么第三方、什么版本、是否需要排除/覆盖”。</li>
+<li><strong>framework</strong>：只关心“内部有哪些模块、各自版本、内部依赖关系”。</li>
+<li><strong>业务/应用模块</strong>：只关心“我需要哪些外部库和内部模块”，不关心具体版本。</li>
+</ul>
+<hr>
+<h2 id="四-结构速览">四、结构速览</h2>
+<pre><code>根 pom.xml (主工程)
+├── dependencyManagement
+│   └── import: &lt;your-project&gt;-dependencies (type=pom, scope=import)
+├── modules: framework, dependencies, 其他业务模块等
+│
+dependencies/pom.xml (&lt;your-project&gt;-dependencies) — 外部 BOM
+├── properties: 所有外部依赖版本
+└── dependencyManagement: 外部依赖声明 + 对 Spring Boot/Cloud 等 BOM 的 import
+│
+framework/pom.xml (&lt;your-project&gt;-framework) — parent 为根 POM
+├── properties: 所有内部模块版本 (base, common, web, biz-*, starters 等)
+├── dependencyManagement: 所有内部模块的 dependency 声明
+└── modules: base, common, web, biz, starters, ...
+    │
+    └── 各子模块 pom：parent = &lt;your-project&gt;-framework（或 biz/starters）
+        └── dependencies: 仅 groupId + artifactId，无 version（外部与内部均由上层管理）
+</code></pre>
+<hr>
+<h2 id="五-实践建议与当前项目一致">五、实践建议（与当前项目一致）</h2>
+<ol>
+<li><strong>新增外部依赖</strong>：在 <code>dependencies/pom.xml</code> 的 properties 中增加版本属性，并在 dependencyManagement 中声明；子模块需要时在各自 pom 的 dependencies 中只写 groupId、artifactId。</li>
+<li><strong>新增内部模块</strong>：在 <code>framework/pom.xml</code> 的 properties 与 dependencyManagement 中增加该模块的版本与 dependency 声明；其他模块引用时只写 groupId、artifactId。</li>
+<li><strong>升级版本</strong>：外部依赖在 dependencies 的 properties/dependencyManagement 中改；内部模块在 framework 的 properties/dependencyManagement 中改，保持“单一事实来源”。</li>
+</ol>
+<p>以上总结为通用依赖管理实践，可将占位符 <code>&lt;your-groupId&gt;</code>、<code>&lt;your-project&gt;</code> 替换为实际项目信息后作为团队规范参考。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Hello Gridea]]></title>
+        <id>https://da1v4d.github.io/post/hello-gridea/</id>
+        <link href="https://da1v4d.github.io/post/hello-gridea/">
+        </link>
+        <updated>2018-12-11T16:00:00.000Z</updated>
+        <summary type="html"><![CDATA[<p>👏  欢迎使用 <strong>Gridea</strong> ！<br>
+✍️  <strong>Gridea</strong> 一个静态博客写作客户端。你可以用它来记录你的生活、心情、知识、笔记、创意... ...</p>
+]]></summary>
+        <content type="html"><![CDATA[<p>👏  欢迎使用 <strong>Gridea</strong> ！<br>
+✍️  <strong>Gridea</strong> 一个静态博客写作客户端。你可以用它来记录你的生活、心情、知识、笔记、创意... ...</p>
+<!-- more -->
+<p><a href="https://github.com/getgridea/gridea">Github</a><br>
+<a href="https://gridea.dev/">Gridea 主页</a><br>
+<a href="https://fehey.com/">示例网站</a></p>
+<h2 id="特性">特性👇</h2>
+<p>📝  你可以使用最酷的 <strong>Markdown</strong> 语法，进行快速创作</p>
+<p>🌉  你可以给文章配上精美的封面图和在文章任意位置插入图片</p>
+<p>🏷️  你可以对文章进行标签分组</p>
+<p>📋  你可以自定义菜单，甚至可以创建外部链接菜单</p>
+<p>💻  你可以在 <strong>Windows</strong>，<strong>MacOS</strong> 或 <strong>Linux</strong> 设备上使用此客户端</p>
+<p>🌎  你可以使用 <strong>𝖦𝗂𝗍𝗁𝗎𝖻 𝖯𝖺𝗀𝖾𝗌</strong> 或 <strong>Coding Pages</strong> 向世界展示，未来将支持更多平台</p>
+<p>💬  你可以进行简单的配置，接入 <a href="https://github.com/gitalk/gitalk">Gitalk</a> 或 <a href="https://github.com/SukkaW/DisqusJS">DisqusJS</a> 评论系统</p>
+<p>🇬🇧  你可以使用<strong>中文简体</strong>或<strong>英语</strong></p>
+<p>🌁  你可以任意使用应用内默认主题或任意第三方主题，强大的主题自定义能力</p>
+<p>🖥  你可以自定义源文件夹，利用 OneDrive、百度网盘、iCloud、Dropbox 等进行多设备同步</p>
+<p>🌱 当然 <strong>Gridea</strong> 还很年轻，有很多不足，但请相信，它会不停向前 🏃</p>
+<p>未来，它一定会成为你离不开的伙伴</p>
+<p>尽情发挥你的才华吧！<br>
+test-change<br>
+😘 Enjoy~</p>
+]]></content>
+    </entry>
+</feed>

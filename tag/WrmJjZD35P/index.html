@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Greal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="温故而知新"/>
+<meta name="keywords" content="温故而知新"/>
+<link rel="shortcut icon" href="https://da1v4d.github.io/favicon.ico">
+<link rel="stylesheet" href="https://da1v4d.github.io/styles/main.css">
+
+
+<!-- Comment -->
+
+
+<link href="https://cdn.bootcss.com/font-awesome/5.11.2/css/all.min.css" rel="stylesheet">
+
+
+
+</head>
+<body class="tag-template">
+<div id="page" class="site">
+
+    <!-- 参考 paper 主题：纯 CSS 导航开关（checkbox + label），不依赖 JS，部署后 404 时导航仍可打开 -->
+<input type="checkbox" id="sidebar-toggle-cb" class="sidebar-checkbox" aria-hidden="true" hidden>
+<header class="site-header">
+    <h1 class="site-title"><a href="https://da1v4d.github.io">Greal</a></h1>
+    <div class="header-search-wrap">
+        <input type="search" class="header-search-input" placeholder="搜索…  Ctrl+K" aria-label="打开搜索" autocomplete="off" readonly>
+        <button type="button" class="header-search-icon" aria-label="打开搜索" title="搜索"><i class="fas fa-search" aria-hidden="true"></i></button>
+    </div>
+    <label for="sidebar-toggle-cb" class="sidebar-toggle" aria-label="打开菜单"><span class="screen-reader-text">Menu</span><span class="icon" aria-hidden="true"></span></label>
+</header>
+
+<!-- 搜索悬浮窗：点击头部搜索框后显示，背景毛玻璃，使用搜索索引做模糊搜索 -->
+<div id="search-overlay" class="search-overlay" aria-hidden="true" data-domain="https://da1v4d.github.io">
+    <div class="search-overlay-backdrop" data-close="search"></div>
+    <div class="search-overlay-panel">
+        <div class="search-overlay-form">
+            <div class="search-overlay-input-wrap">
+                <span class="search-placeholder-left" aria-hidden="true">搜索...</span>
+                <span class="search-placeholder-right" aria-hidden="true">Ctrl+K</span>
+                <input type="search" class="search-overlay-input" placeholder=" " aria-label="搜索" autocomplete="off">
+            </div>
+            <button type="button" class="search-overlay-close" aria-label="关闭搜索" data-close="search">&times;</button>
+        </div>
+        <div class="search-overlay-results" id="search-overlay-results" aria-live="polite"></div>
+    </div>
+</div>
+
+<aside class="sidebar">
+    <div class="sidebar-scrollable">
+        <div class="inner">
+            <div class="widget-area">
+                <!-- 菜单 -->
+                <nav class="site-navigation">
+                    <h2>Greal</h2>
+                    <ul class="menu">
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/"
+                                
+                                >首页</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/archives"
+                                
+                                >归档</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/tag/HaLb7n1iTe/"
+                                
+                                >技术分享</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/tags"
+                                
+                                >标签</a>
+                            </li>
+                        
+                            <li class="menu-item home current-menu-item">
+                                <a href="/post/about"
+                                
+                                >关于</a>
+                            </li>
+                        
+                    </ul>
+                </nav>
+
+                <section class="widget widget-about">
+                    <h2 class="widget-title">关于</h2>
+                    <p>温故而知新</p>
+                </section>
+
+                <section class="widget widget-tags">
+                    <h2 class="widget-title">标签</h2>
+                    <div class="tagcloud">
+                        
+                            <a href="https://da1v4d.github.io/tag/HaLb7n1iTe/" class="button">
+                                技术分享
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/-MHu0nqeXU/" class="button">
+                                springboot
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/XzEHCMPN89/" class="button">
+                                java
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/sg3MDIswNj/" class="button">
+                                maven
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                            <a href="https://da1v4d.github.io/tag/a-SFnGmQWe/" class="button">
+                                Gridea
+                                <span aria-hidden="true"><span class="line left"></span><span class="line top"></span><span class="line right"></span><span class="line bottom"></span></span>
+                            </a>
+                        
+                    </div>
+                </section>
+
+            </div>
+            <label for="sidebar-toggle-cb" class="sidebar-toggle" aria-label="关闭菜单"><span class="screen-reader-text">Close</span><span class="icon" aria-hidden="true"></span></label>
+        </div>
+    </div>
+</aside>
+<!-- SearchManager：搜索逻辑独立模块，高内聚；通过 init / openSearch / closeSearch 与页面低耦合 -->
+<script type="application/javascript">
+
+(function () {
+  'use strict';
+
+  var LOG_PREFIX = '[Galaxy Search]';
+  var SEARCH_DEBOUNCE_MS = 180;
+  var SEARCH_FOCUS_DELAY_MS = 50;
+  var SEARCH_INDEX_PATH = 'search-index/index.html';
+  var SEARCH_SUMMARY_MAX_LEN = 120;
+  var SCORE_TITLE = 100;
+  var SCORE_TAG = 50;
+  var SCORE_SUMMARY = 10;
+
+  function log() {
+    try {
+      if (typeof console !== 'undefined' && console.log) {
+        console.log.apply(console, [LOG_PREFIX].concat(Array.prototype.slice.call(arguments)));
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    var s = String(str);
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function defer(fn, delayMs) {
+    delayMs = delayMs == null ? 0 : delayMs;
+    if (typeof requestAnimationFrame !== 'undefined' && delayMs <= 0) {
+      requestAnimationFrame(fn);
+    } else {
+      setTimeout(fn, delayMs);
+    }
+  }
+
+  function getSearchIndexUrl(domain) {
+    if (!domain) return '';
+    var a = document.createElement('a');
+    a.href = domain;
+    var path = a.pathname || '/';
+    var base = path.replace(/\/$/, '') + '/';
+    return base + SEARCH_INDEX_PATH;
+  }
+
+  function decodeHtmlEntitiesForJson(s) {
+    if (typeof s !== 'string') return s;
+    return s
+      .replace(/&#34;/g, '"')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+  }
+
+  function parseSearchIndexResponse(raw, logger) {
+    if (typeof raw !== 'string') {
+      if (logger) logger('parseSearchIndexResponse', 'invalid type', typeof raw);
+      return null;
+    }
+    var text = raw.replace(/^\uFEFF/, '').trim();
+    text = decodeHtmlEntitiesForJson(text);
+    if (text.charAt(0) !== '{') {
+      var start = text.indexOf('{');
+      var end = text.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        text = text.slice(start, end + 1);
+      } else {
+        if (logger) logger('parseSearchIndexResponse', 'no JSON object in response');
+        return null;
+      }
+    }
+    try {
+      var data = JSON.parse(text);
+      var posts = Array.isArray(data.posts) ? data.posts : [];
+      if (logger) logger('parseSearchIndexResponse', 'ok', 'posts.length=', posts.length);
+      return posts;
+    } catch (e) {
+      if (logger) logger('search index parse error', e.message, 'preview=', text.slice(0, 120));
+      return null;
+    }
+  }
+
+  function normalizePostItem(item) {
+    if (!item || typeof item !== 'object') return null;
+    return {
+      title: item.title != null ? String(item.title) : '',
+      link: item.link != null ? String(item.link) : '#',
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      summary: item.summary != null ? String(item.summary) : ''
+    };
+  }
+
+  function createSearchIndexFetcher(getUrl, logger) {
+    var cache = null;
+    return function fetchSearchIndex(callback) {
+      if (typeof callback !== 'function') return;
+      if (cache) {
+        if (logger) logger('fetchSearchIndex', 'from cache', 'count=', cache.length);
+        callback(cache);
+        return;
+      }
+      var url = getUrl();
+      if (!url) {
+        if (logger) logger('fetchSearchIndex', 'url empty');
+        callback([]);
+        return;
+      }
+      if (logger) logger('fetchSearchIndex', 'start', 'url=', url);
+      var xhr = new XMLHttpRequest();
+      var done = false;
+      function finish(posts) {
+        if (done) return;
+        done = true;
+        if (posts && posts.length > 0) cache = posts;
+        callback(posts || []);
+      }
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status === 200) {
+          var posts = parseSearchIndexResponse(xhr.responseText, logger);
+          finish(posts);
+        } else {
+          if (logger) logger('fetchSearchIndex', 'error', 'status=', xhr.status);
+          finish([]);
+        }
+      };
+      xhr.onerror = function () {
+        if (logger) logger('fetchSearchIndex', 'network error');
+        finish([]);
+      };
+      try {
+        xhr.open('GET', url, true);
+        xhr.send();
+      } catch (e) {
+        if (logger) logger('fetchSearchIndex', 'send error', e.message);
+        finish([]);
+      }
+    };
+  }
+
+  function fuzzyMatchScore(item, words) {
+    var title = (item.title || '').toLowerCase();
+    var tags = (item.tags || []).join(' ').toLowerCase();
+    var summary = (item.summary || '').toLowerCase();
+    var combined = title + ' ' + tags + ' ' + summary;
+    var score = 0;
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (!w) continue;
+      var idx = combined.indexOf(w);
+      if (idx === -1) return -1;
+      if (idx < title.length) score += SCORE_TITLE;
+      else if (idx < title.length + tags.length) score += SCORE_TAG;
+      else score += SCORE_SUMMARY;
+    }
+    return score;
+  }
+
+  function renderSearchResults(containerEl, list, escapeFn) {
+    if (!containerEl) return;
+    if (!list || list.length === 0) {
+      containerEl.setAttribute('data-state', 'empty');
+      containerEl.innerHTML = '<p class="search-overlay-status">无匹配结果</p>';
+      return;
+    }
+    containerEl.setAttribute('data-state', 'results');
+    var html = '<ul class="search-overlay-list">';
+    for (var j = 0; j < list.length; j++) {
+      var p = list[j].item;
+      var titleEsc = escapeFn(p.title || '');
+      var summary = p.summary || '';
+      var summaryEsc = escapeFn(summary.slice(0, SEARCH_SUMMARY_MAX_LEN));
+      if (summary.length > SEARCH_SUMMARY_MAX_LEN) summaryEsc += '…';
+      var linkEsc = escapeFn(p.link || '#');
+      html += '<li class="search-overlay-item" data-index="' + j + '"><a href="' + linkEsc + '" class="search-overlay-link">';
+      html += '<span class="search-overlay-item-title">' + titleEsc + '</span>';
+      if (summaryEsc) html += '<span class="search-overlay-item-summary">' + summaryEsc + '</span>';
+      html += '</a></li>';
+    }
+    html += '</ul>';
+    containerEl.innerHTML = html;
+  }
+
+  var overlayEl = null;
+  var overlayInput = null;
+  var overlayInputWrap = null;
+  var resultsEl = null;
+  var closeButtons = null;
+  var searchPanel = null;
+  var headerSearchInput = null;
+  var indexUrlGetter = null;
+  var fetchSearchIndex = null;
+  var searchDebounceTimer = null;
+  var searchHighlightedIndex = -1;
+
+  function clearSearchDebounce() {
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
+  }
+
+  function getSearchResultItems() {
+    return resultsEl ? resultsEl.querySelectorAll('.search-overlay-item') : [];
+  }
+
+  function setSearchHighlight(index) {
+    var items = getSearchResultItems();
+    var count = items.length;
+    if (count === 0) { searchHighlightedIndex = -1; return; }
+    var idx = index < 0 ? 0 : (index >= count ? count - 1 : index);
+    if (overlayEl) overlayEl.setAttribute('data-input-mode', 'keyboard');
+    for (var i = 0; i < count; i++) items[i].classList.toggle('is-highlighted', i === idx);
+    items[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    searchHighlightedIndex = idx;
+  }
+
+  function setMouseHighlight(itemEl) {
+    if (!overlayEl || !resultsEl) return;
+    overlayEl.setAttribute('data-input-mode', 'mouse');
+    var items = getSearchResultItems();
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle('is-hovered', items[i] === itemEl);
+    }
+  }
+
+  function clearMouseHighlight() {
+    if (!resultsEl) return;
+    var items = getSearchResultItems();
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('is-hovered');
+  }
+
+  function syncSearchPlaceholder() {
+    if (overlayInputWrap && overlayInput) {
+      overlayInputWrap.classList.toggle('has-value', overlayInput.value.trim().length > 0);
+    }
+  }
+
+  function openSearch() {
+    if (!overlayEl) return;
+    overlayEl.classList.add('is-open');
+    overlayEl.setAttribute('aria-hidden', 'false');
+    overlayEl.setAttribute('data-input-mode', 'keyboard');
+    if (document.body) document.body.classList.add('search-overlay-open');
+    if (overlayInput) {
+      overlayInput.value = '';
+      defer(function () {
+        try { overlayInput.focus(); } catch (e) { /* ignore */ }
+      }, SEARCH_FOCUS_DELAY_MS);
+    }
+    if (resultsEl) {
+      resultsEl.innerHTML = '';
+      resultsEl.setAttribute('data-state', 'idle');
+    }
+    searchHighlightedIndex = -1;
+  }
+
+  function closeSearch() {
+    if (!overlayEl) return;
+    overlayEl.classList.remove('is-open');
+    overlayEl.setAttribute('aria-hidden', 'true');
+    if (document.body) document.body.classList.remove('search-overlay-open');
+    clearSearchDebounce();
+    if (headerSearchInput) {
+      try { headerSearchInput.blur(); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function runSearch() {
+    var q = overlayInput ? overlayInput.value.trim() : '';
+    if (!resultsEl) return;
+    if (!q) {
+      resultsEl.innerHTML = '';
+      resultsEl.setAttribute('data-state', 'idle');
+      return;
+    }
+    resultsEl.setAttribute('data-state', 'loading');
+    resultsEl.innerHTML = '<p class="search-overlay-status">搜索中…</p>';
+    fetchSearchIndex(function (posts) {
+      if (!resultsEl) return;
+      var normalized = [];
+      for (var i = 0; i < posts.length; i++) {
+        var p = normalizePostItem(posts[i]);
+        if (p) normalized.push(p);
+      }
+      var words = q.toLowerCase().split(/\s+/).filter(function (w) { return w.length > 0; });
+      var list = [];
+      for (var k = 0; k < normalized.length; k++) {
+        var score = fuzzyMatchScore(normalized[k], words);
+        if (score >= 0) list.push({ item: normalized[k], score: score });
+      }
+      list.sort(function (a, b) { return b.score - a.score; });
+      renderSearchResults(resultsEl, list, escapeHtml);
+      setSearchHighlight(list.length > 0 ? 0 : -1);
+    });
+  }
+
+  function onSearchInput() {
+    syncSearchPlaceholder();
+    clearSearchDebounce();
+    searchDebounceTimer = setTimeout(runSearch, SEARCH_DEBOUNCE_MS);
+  }
+
+  function handleSearchNavigationKey(e) {
+    var items = getSearchResultItems();
+    var count = items.length;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (count > 0) setSearchHighlight(searchHighlightedIndex < 0 ? 0 : searchHighlightedIndex + 1);
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (count > 0) setSearchHighlight(searchHighlightedIndex <= 0 ? count - 1 : searchHighlightedIndex - 1);
+      return true;
+    }
+    if (e.key === 'Enter') {
+      if (count > 0 && searchHighlightedIndex >= 0) {
+        var link = items[searchHighlightedIndex].querySelector('.search-overlay-link');
+        if (link && link.href) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSearch();
+          window.location.href = link.href;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function onSearchKeydown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+      return;
+    }
+    if (handleSearchNavigationKey(e)) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearSearchDebounce();
+      runSearch();
+    }
+  }
+
+  function init(el, options) {
+    options = options || {};
+    overlayEl = el;
+    if (!el) {
+      log('init', 'no overlay element');
+      return;
+    }
+    overlayInput = el.querySelector('.search-overlay-input');
+    overlayInputWrap = el.querySelector('.search-overlay-input-wrap');
+    resultsEl = el.querySelector('#search-overlay-results') || el.querySelector('.search-overlay-results');
+    closeButtons = el.querySelectorAll('[data-close="search"]');
+    searchPanel = el.querySelector('.search-overlay-panel');
+    headerSearchInput = options.headerSearchInput || null;
+
+    indexUrlGetter = (function () {
+      var url = '';
+      return function getUrl() {
+        if (url) return url;
+        var domain = overlayEl.getAttribute('data-domain') || '';
+        url = getSearchIndexUrl(domain);
+        return url;
+      };
+    })();
+    fetchSearchIndex = createSearchIndexFetcher(indexUrlGetter, log);
+
+    if (overlayInput) {
+      overlayInput.addEventListener('input', onSearchInput);
+      overlayInput.addEventListener('keydown', onSearchKeydown);
+    }
+    if (searchPanel) {
+      searchPanel.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          closeSearch();
+          e.preventDefault();
+          return;
+        }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+          if (handleSearchNavigationKey(e)) e.preventDefault();
+        }
+      });
+    }
+    if (resultsEl) {
+      resultsEl.addEventListener('mouseover', function (e) {
+        var item = e.target && e.target.closest ? e.target.closest('.search-overlay-item') : null;
+        if (!item || !resultsEl.contains(item)) return;
+        setMouseHighlight(item);
+      });
+      resultsEl.addEventListener('mouseleave', function () {
+        clearMouseHighlight();
+      });
+    }
+    [].forEach.call(closeButtons || [], function (btn) {
+      if (btn && btn.addEventListener) btn.addEventListener('click', closeSearch);
+    });
+    log('init', 'overlay bound');
+  }
+
+  window.SearchManager = {
+    init: init,
+    openSearch: openSearch,
+    closeSearch: closeSearch
+  };
+})();
+
+</script>
+<script type="application/javascript">
+'use strict';
+(function () {
+  var doc = document;
+  var log = function () {
+    try {
+      if (typeof console !== 'undefined' && console.log) {
+        console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments)));
+      }
+    } catch (e) { /* noop */ }
+  };
+
+  function onReady() {
+    var cb = doc.getElementById('sidebar-toggle-cb');
+    var labels = doc.querySelectorAll('label[for="sidebar-toggle-cb"]');
+    log('DOM check', 'checkbox=', !!cb, 'labels=', labels ? labels.length : 0);
+
+    // 侧栏：同步 body 类名（兼容不支持 :has() 的浏览器）
+    function syncSidebar() {
+      if (cb && doc.body) doc.body.classList.toggle('sidebar-opened', cb.checked);
+    }
+    if (cb) cb.addEventListener('change', syncSidebar);
+    [].forEach.call(labels || [], function (el) {
+      if (el && el.addEventListener) el.addEventListener('click', syncSidebar);
+    });
+    syncSidebar();
+
+    var searchOverlay = doc.getElementById('search-overlay');
+    var headerSearchInput = doc.querySelector('.header-search-input');
+    var headerSearchIcon = doc.querySelector('.header-search-icon');
+
+    if (typeof window.SearchManager !== 'undefined' && searchOverlay) {
+      window.SearchManager.init(searchOverlay, { headerSearchInput: headerSearchInput || undefined });
+      function onOpenSearch(e) {
+        e.preventDefault();
+        window.SearchManager.openSearch();
+      }
+      if (headerSearchInput) headerSearchInput.addEventListener('click', onOpenSearch);
+      if (headerSearchIcon) headerSearchIcon.addEventListener('click', onOpenSearch);
+      doc.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+          e.preventDefault();
+          window.SearchManager.openSearch();
+        }
+      }, true);
+    }
+  }
+
+  if (doc.readyState === 'loading') {
+    doc.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
+  }
+})();
+</script>
+
+
+    <main class="site-main">
+        <div class="site-content">
+
+            <header class="cover page-header">
+                <div class="cover-bg"
+                     style="background-image: linear-gradient( 135deg, #43CBFF 10%, #9708CC 100%);"></div>
+                <div class="cover-content">
+                    <div class="inner">
+                        <div class="post-count"></div>
+                        <h1 class="page-title" style="font-size: 46px;">test</h1>
+                    </div>
+                </div>
+            </header>
+
+            <div id="post-list" class="post-list inner">
+                
+                    <article class="post">
+                        <!-- post-header -->
+                        <header class="post-header">
+                            <div class="post-tags">
+                                
+                                    
+                                        <a href="https://da1v4d.github.io/tag/WrmJjZD35P/">test&nbsp;&nbsp;</a>
+                                    
+                                        <a href="https://da1v4d.github.io/tag/a-SFnGmQWe/">Gridea&nbsp;&nbsp;</a>
+                                    
+                                
+                            </div>
+                            <div class="post-header-wrap">
+                                <h2 class="post-title">
+                                    <a href="https://da1v4d.github.io/post/test/">Test测试菜单下 文章</a>
+                                </h2>
+                                <div class="post-meta">
+                                    <i class="fa fa-eye"></i>
+                                    <span class="post-author">1 min read</span>
+                                    <time class="published" datetime="2026-03-05">2026-03-05</time>
+                                </div>
+                            </div>
+                        </header>
+                        <!-- post-content -->
+                        <div class="post-content">
+                            <div class="read-more">
+                                <a class="button" href="https://da1v4d.github.io/post/test/">
+                                    Read More
+                                    <span aria-hidden="true"> </span>
+                                    <span class="line left"></span>
+                                    <span class="line top"></span>
+                                    <span class="line right"></span>
+                                    <span class="line bottom"></span>
+
+                                </a>
+                            </div>
+                        </div>
+                    </article>
+                
+            </div>
+
+            <nav class="pagination">
+    <h2 class="screen-reader-text">Posts Navigation</h2>
+    <div class="inner">
+        <span class="page-number"></span>
+        
+        
+    </div>
+</nav>
+
+
+
+        </div>
+    </main>
+
+    <footer class="site-footer">
+    <div class="inner">
+        <!-- 社交 -->
+        <div class="offsite-links">
+            
+                
+                    <a href="https://github.com/Da1V4d" class="circle" target="_blank" rel="noopener">
+                        <i class="fab fa-github"></i>
+                    </a>
+                
+            
+                
+            
+                
+            
+                
+            
+                
+            
+        </div>
+
+        <div class="site-info">
+            THEME BY <a href="https://github.com/GalaxySuze/gridea-theme-subtle-galaxy">Subtle Galaxy</a>, REFERENCE FROM <a href="https://subtle.justgoodthemes.com/">Subtle</a><br/>
+            Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+        </div>
+        <a href="#page" class="arrow-up" data-scroll><span class="screen-reader-text">Back to the top</span></a>
+    </div>
+</footer>
+
+
+</div>
+
+<!-- 参考 paper 主题：在不支持 :has() 的浏览器中，将 checkbox 状态同步到 body；[Galaxy Nav] 日志便于 GitHub Pages 排查 -->
+<script type="application/javascript">
+(function() {
+  var log = function() { try { console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {} };
+  function syncSidebar() {
+    var cb = document.getElementById('sidebar-toggle-cb');
+    log('syncSidebar', 'cb=', !!cb, 'body=', !!document.body, 'checked=', cb ? cb.checked : 'n/a');
+    if (cb && document.body) {
+      document.body.classList.toggle('sidebar-opened', cb.checked);
+      log('syncSidebar done', 'body.className=', document.body.className);
+    } else {
+      log('syncSidebar skip', 'missing cb or body');
+    }
+  }
+  function init() {
+    var cb = document.getElementById('sidebar-toggle-cb');
+    var labels = document.querySelectorAll('label[for="sidebar-toggle-cb"]');
+    var hasSupport = false;
+    try { hasSupport = document.documentElement.matches('body:has(a)'); } catch (e) {}
+    log('init', 'checkbox=', !!cb, 'labels=', labels.length, 'location=', location.href, 'CSS :has()=', hasSupport);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', syncSidebar);
+    else syncSidebar();
+  }
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'sidebar-toggle-cb') {
+      log('checkbox change', 'checked=', e.target.checked);
+      syncSidebar();
+    }
+  });
+  init();
+})();
+</script>
+<!-- 从 domain 解析 base 路径加载本地脚本；[Galaxy Nav] 日志便于 GitHub Pages 排查 -->
+<script type="application/javascript">
+(function() {
+    var log = function() { try { console.log.apply(console, ['[Galaxy Nav]'].concat(Array.prototype.slice.call(arguments))); } catch (e) {} };
+    var domain = 'https://da1v4d.github.io';
+    var a = document.createElement('a');
+    a.href = domain;
+    var base = (a.pathname || '/').replace(/\/$/, '') + '/';
+    log('scripts', 'domain=', domain, 'base=', base, 'pathname=', a.pathname);
+    function loadScript(src, next) {
+        var s = document.createElement('script');
+        s.src = base + src;
+        log('loadScript', src, 'url=', s.src);
+        if (next) {
+            s.onload = function() { log('loaded', src); next(); };
+            s.onerror = function() { log('FAILED to load', src, 'url=', s.src); next(); };
+        } else {
+            s.onerror = function() { log('FAILED to load', src, 'url=', s.src); };
+        }
+        document.body.appendChild(s);
+    }
+    loadScript('media/scripts/_core/plugins.js', function() {
+        loadScript('media/scripts/_core/custom.js', function() {
+            if (typeof hljs !== 'undefined') hljs.initHighlightingOnLoad();
+        });
+    });
+})();
+</script>
+
+<!-- highlight -->
+<script src="https://cdn.bootcss.com/highlight.js/9.15.8/highlight.min.js"></script>
+
+<script type="application/javascript">
+    // 代码高亮（若上面异步未完成则此处兜底）
+    if (typeof hljs !== 'undefined') hljs.initHighlightingOnLoad();
+</script>
+
+
+
+
+
+</body>
+</html>
